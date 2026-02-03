@@ -1,0 +1,423 @@
+PROMPT FOR AI APP BUILDER
+
+You are designing and building “nEUws” – a Duolingo-meets-NYTimes-meets-Substack-meets-Buzzfeed for Europe.
+
+The brand is “Real stories by real Europeans”:
+
+People across Europe write, read, and discuss news, culture, politics, music, and local life.
+
+The platform runs fast because an internal AI backend helps the editorial team find stories and draft daily content.
+
+But to the user, the focus is humans and community, not “wow, AI”.
+
+Avoid technical implementation details (frameworks, databases). Focus on UX, flows, and features.
+
+1. Vibe & Branding
+
+Core identity:
+
+“A European club where you actually understand what’s going on – from people who live it.”
+
+Human, warm, curious. Less “AI startup”, more “magazine + community + games”.
+
+Visual style:
+
+Clean, modern, playful like Duolingo/NYT Games, but with more faces, bylines, and cities.
+
+Country tags and subtle flag accents.
+
+Absolutely do not cover the interface in “AI” labels.
+
+The internal automation is for speed and quality for the editorial team, not a marketing gimmick.
+
+2. Product Pillars
+
+Design the app around these pillars:
+
+Daily European Briefing
+
+Curated stories from every European country.
+
+Mix of short news, longer explainers, and personal perspectives.
+
+Creator Economy
+
+Ordinary Europeans can write high-quality articles, quizzes, and videos.
+
+They can earn money from supporter funds and premium users.
+
+Platform gently encourages “if you know something, teach/explain it.”
+
+Learn Europe
+
+Short learning tracks on history, politics, culture, and music.
+
+Daily games & quizzes inspired by NYT-style puzzles.
+
+Local Perks
+
+Discounts on European brands.
+
+Invitations to local events and meetups.
+
+Multilingual Access
+
+People can read and learn across borders thanks to built-in translation.
+
+Behind the scenes, an AI backend:
+
+Helps the internal editorial team scan online sources daily.
+
+Drafts structured briefs and explainer outlines.
+
+Suggests quiz questions.
+But the UI talks about “editorial team” and “community”, not “AI”.
+
+3. Free vs Premium – Value Logic
+Feature	Free (“Value Free”)	Premium (“Value Premium” – €7.99/mo)
+News from every European country	Yes	Yes
+In-depth analysis / debates	2 per day	Unlimited
+Daily games & quizzes	2 games per day	Unlimited + harder modes + special series
+Learning tracks (history, politics etc.)	Basic access, some steps locked	Full access, deep dives
+Discounts on European brands	Some deals	More / better deals, premium-only offers
+Write & earn	Allowed, lower visibility / basic earning tier	Boosted visibility, better earning tier
+Like / dislike / comment / save folders	Yes	Yes + smart folders / recommendations
+Local events	See some events	Priority invites, extra details
+Translation features	Translate articles & UI between languages	Same + richer learning modes (e.g. side-by-side reading)
+Visual treatment	Light upsell and soft limits	Ad-free, a few premium design touches
+
+All screens must respect these differences (locks, counters, soft paywalls).
+
+4. Core Objects & How They Feel
+4.1 Article
+
+Types:
+
+News brief – short, factual “what happened”.
+
+Explainer / debate – gives context, why it matters.
+
+Personal story / essay – very “real person in Europe” vibe.
+
+Fields and UX elements:
+
+Title, country, topic, reading time, difficulty.
+
+Author focus: avatar, short bio, country, maybe “first-time writer” badge.
+
+Clear separation between:
+
+Community pieces (creators).
+
+Editorial pieces (team, assisted by internal AI).
+
+Actions:
+
+Like / dislike (tunes the feed).
+
+Comment thread.
+
+Save to folders.
+
+Share.
+
+Translation UX (important but not flashy):
+
+Small, friendly controls:
+
+“Read in English” / “Read in original [Language]”.
+
+“Translated from [Language]” note – calm, not a flex.
+
+Long-press / highlight text → show translation + simpler explanation.
+
+Avoid big “AI generated” badges. If needed, editorial content can be tagged as “Editorial team”.
+
+4.2 Creator Content (Articles, Quizzes, Videos)
+
+Treat creators as the heart of the brand:
+
+Each creator has:
+
+Profile page with bio, country, topics they cover.
+
+Stats: views, likes, saves, earnings estimate.
+
+Creation flows:
+
+Write article – templates for news, explainer, or personal story.
+
+Create quiz/game – based on their own article or topic.
+
+Upload short video – a quick explainer, tied to an article/topic.
+
+Internally, you may use AI tools to help creators (suggest titles, outline, etc.), but user-facing copy should emphasize:
+
+“We help you structure your ideas”
+
+“Writing helpers” / “Suggestions”
+Not “AI this, AI that”.
+
+4.3 Games & Quizzes
+
+NYT-inspired micro-games:
+
+Map/flags, capitals, “connections” groups, timelines, quote guessing, etc.
+
+Each game is tied to:
+
+One or more countries.
+
+An article or learning track step.
+
+Gamification:
+
+XP, streaks, badges.
+
+Daily and weekly challenges (“This week: Balkans week / EU elections special”).
+
+Some games are auto-derived from content (internally via AI), but outward messaging:
+
+“Today’s games based on stories from around Europe.”
+
+4.4 Learning Tracks
+
+Short series like:
+
+“How the EU actually works.”
+
+“Modern Polish politics.”
+
+“History of UK–EU relations.”
+
+“Spanish urban music 101.”
+
+Each track combines:
+
+3–10 steps, each step = 1–2 articles + 1 game.
+
+Progress bar, small rewards (badges, XP).
+
+Tracks can be built both by the editorial team and top creators.
+
+4.5 Discounts & Events
+
+Discounts:
+
+Deals from European brands (travel, food, fashion, SaaS, etc.).
+
+Cards with merchant, country, category, amount, “Copy code”.
+
+Events:
+
+Meetups, talks, cultural nights, elections watch parties, etc.
+
+Each event: city, venue, date/time, host, RSVP button.
+
+Texts should be translated to user’s language with small notes like “Description translated from [Language]”.
+
+5. Main Screens & Flows
+5.1 Onboarding
+
+Ask:
+
+Country of residence.
+
+Languages (native + ones they’re comfortable reading).
+
+Interests (politics, history, music, tech, business, culture, local life).
+
+Favorite countries to follow.
+
+Explain the promise in human terms, not AI terms:
+
+“Every day you get a short European briefing, games, and the best community stories, tailored to you.”
+
+5.2 Home / Today
+
+Sections:
+
+Today in your Europe
+
+3–6 cards:
+
+One from their country.
+
+One from a favorite country.
+
+One big EU / pan-European topic.
+
+Mix editorial + creator content.
+
+From real people like you
+
+Feed of personal essays, local explainers, and opinion pieces by creators.
+
+Today’s games
+
+Shows how many free games used (e.g. 1/2).
+
+Quick play buttons.
+
+Continue learning
+
+Resume learning track or suggest new one.
+
+Perks & events
+
+1–2 discounts + 1 nearby or topical event.
+
+Translation:
+
+A small language toggle near top (e.g. “Reading in Swedish · change”).
+
+No loud AI branding. The sense should be:
+
+“Curated + community, with translation that just works.”
+
+5.3 Countries Explorer
+
+List / map of European countries.
+
+When choosing a country, show:
+
+Top stories.
+
+Popular creator articles from there.
+
+Learning tracks and games tied to that country.
+
+Language / translation:
+
+Show original headline if applicable, but let user tap “Read in [their language]”.
+
+Tiny “Translated from X” note.
+
+5.4 Article Page
+
+Key elements:
+
+Strong byline and author section (avatar, country, short tagline).
+
+Topic, tags, estimated time.
+
+For complex pieces, a small context box (timeline, key players, basic definitions).
+
+At the end:
+
+Game or quiz related to the article.
+
+Suggested next articles / learning steps.
+
+CTA for readers:
+
+“Save to folder”
+
+“Follow this author”
+
+“Write your own take on this topic”
+
+Translation UX:
+
+Toggle language.
+
+Highlight-to-translate popup.
+
+Option “Make this easier to understand” (simplified version) if you want.
+
+5.5 Games Hub
+
+Dedicated tab:
+
+Daily streak bar.
+
+Categories (Politics, History, Culture, Music, Map, etc.).
+
+Show relationship to stories:
+
+“Based on recent stories from [countries]”.
+
+Free vs premium clearly visible:
+
+Free: “2 plays today, 1 remaining.”
+
+Premium: no limit + “challenge” games.
+
+5.6 Creator Studio
+
+Flow:
+
+Simple entry point: “Earn by explaining your Europe.”
+
+Steps:
+
+Choose type: article / quiz / video explainer.
+
+Fill in basic info: country, topic, language, short pitch.
+
+Writing interface with:
+
+Headline field, sections, guidance prompts.
+
+Optionally, “get suggestions / structure help” (internally backed by AI, but UI just calls it “Writing help”).
+
+Post-publish:
+
+Show performance stats and earnings line.
+
+Articles are auto-translated for readers; creator can see how many readers in each language.
+
+Once again: do not plaster “AI-generated” anywhere; emphasize author + country.
+
+6. Translation Experience
+
+App-wide rules:
+
+Whole app (navigation, settings, tabs) should appear in user’s chosen language.
+
+Articles, comments, event descriptions, and discount details:
+
+Translatable with a tap.
+
+Clearly but gently marked: “Translated from [Language]”.
+
+Important: translation feels like a helpful utility, not a show-off feature.
+
+7. Upgrade & Monetization UX
+
+For free users:
+
+Hit limits naturally:
+
+After 2 in-depth articles: “You’ve reached today’s deep dives. Unlock full access with Premium.”
+
+After 2 games: “You’ve finished your daily games. Premium unlocks unlimited play.”
+
+For premium users:
+
+Highlight:
+
+Unlimited deep dives and games.
+
+Better discounts & earlier event invites.
+
+Better visibility / earnings tier if they are creators.
+
+Tone: friendly, community-first – no aggressive dark patterns.
+
+Overall Goal
+
+Design an app where a European 18–35 year old:
+
+Opens it daily for 5–15 minutes,
+
+Gets a real sense of what people across Europe are living and thinking,
+
+Learns a bit of history/politics/culture through articles and games,
+
+Feels encouraged to share their own perspective and maybe earn,
+
+And can read anything regardless of language thanks to subtle translation features.
+
+Internally, you may use AI to power content discovery, drafting, and translation.
+Externally, the brand is about humans, stories, and community, not AI.

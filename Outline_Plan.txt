@@ -1,0 +1,107 @@
+﻿NEUWS Mobile MVP Outline (Pre-Supabase)
+
+0. Notes and Naming
+- "Learn Home" = the main Learn landing page (do not confuse with learning tracks).
+- Track = a specific learning path inside Learn, not the Learn home page.
+
+1. Goals for This Phase
+- Complete UX shell with realistic mock data and navigation.
+- Implement light/dark mode now (full theme tokens).
+- Add missing pages as UI stubs so the flow feels real.
+
+2. Global UI Placement Rules
+- Top bar: brand/logo centered, Saved icon left of Search.
+- Events entry: top-right, directly below Search/Bookmark, styled like a tab but with a fun color.
+- Primary actions: right side of top bar or sticky footer inside immersive pages.
+- Bottom nav: visible on main tabs, hidden on immersive reading/lesson modes.
+
+3. Core Tabs (Bottom Nav)
+- Home (Today feed)
+- Messages (Coming soon placeholder only)
+- Learn (Coming soon placeholder only)
+- Games (Puzzles hub)
+- You (Profile + settings shortcuts)
+
+4. Home (Today feed)
+- Top bar with Saved, Search, and Events chip (fun color).
+- Horizontal tabs: Today, Lifestyle, Opinion, Sections.
+- Sections in order:
+  - The Latest (hero story card)
+  - 2-4 list rows
+  - Creator strip (horizontal cards)
+  - Today’s games (2 mini cards)
+  - Continue learning (progress card)
+  - Perks & events preview card
+- Micro UI:
+  - Country tags and tiny flags on cards.
+  - Free vs premium counters above games.
+  - Language toggle near top (future).
+
+5. Article Detail (Polyglot Mode)
+- Header (NOT split): hero image, title, topic tag, read time, byline/author, actions.
+- Base setting: polyglot mode on.
+- Split screen appears only when scrolling into the text.
+  - Smooth animation into split view.
+  - Learning language on top, native language on bottom, divider line at center.
+- Action buttons remain accessible at top.
+- Toggle to switch to single-language mode.
+- TODO: word-level mapping and highlight in both languages on tap.
+
+6. Saved
+- Accessed from bookmark icon on Home.
+- List of saved items, icon on right.
+
+7. Discover / Countries Explorer (missing)
+- Map or list of European countries.
+- Country feed opens on tap.
+
+8. Games Hub
+- Puzzles header + today’s puzzles list.
+- Two large featured cards + grid tiles.
+- Add streak banner later.
+
+9. Quiz Flow (missing)
+- Categories list → quiz intro → question flow.
+
+10. Learn (Coming Soon)
+- For now: placeholder.
+- Later: Learn Home with track selection and progress.
+
+11. Learn Track Detail (missing)
+- Track header + module list with locked states.
+
+12. Lesson Game (missing)
+- Immersive full-screen quiz with XP reward.
+
+13. Creators (missing)
+- Creators directory → creator profile with follow.
+
+14. Events (missing)
+- Events list with RSVP.
+- Event detail screen.
+
+15. You (Profile tab)
+- Profile summary + stats cards.
+- Entry points for Settings, Subscription, Creator Studio.
+- Theme toggle (Light/Dark).
+
+16. Settings (missing)
+- Profile edit, appearance, language, subscription.
+
+17. Pricing (missing)
+- Tier cards + soft paywall messaging.
+
+18. Creator Studio + Write (missing)
+- Entry point in You.
+- Create article/quiz flow (UI-only).
+
+19. Phase Plan (Before Supabase)
+- A: Add missing pages as UI-only stubs (Article, Events, Discover, Creator, Settings, Pricing, Quiz).
+- B: Wire navigation from Home cards → Article, Creator, Events.
+- C: Add placeholder Search + Bookmarks folders.
+
+20. Phase Plan (After Supabase)
+- Auth + onboarding flow.
+- Data fetching + caching.
+- Likes, bookmarks, comments, learning progress.
+

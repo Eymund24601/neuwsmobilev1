@@ -1,0 +1,307 @@
+NEUWS v1.1 - Flutter Conversion Function Map
+
+Chapter 1 - App Pages and Purpose
+- / : Home. Shows the marketing landing experience when logged out and the personalized dashboard when logged in.
+- /auth/login : Email/password sign-in screen for existing users.
+- /auth/sign-up : Multi-step onboarding that collects identity, country, and interests; creates a Supabase user and sends verification email.
+- /auth/verify-email : Simple instruction page to check inbox after sign-up.
+- /auth/auth-error : Email verification failure page with recovery actions.
+- /auth/confirm : Email OTP confirmation handler that verifies token and redirects.
+- /discover : Discovery hub with interactive Europe map and topic browsing.
+- /article/[slug] : Article reader with actions, comments, and optional learn-mode module completion.
+- /bookmarks : Saved articles list for the logged-in user.
+- /creators : Directory of creator profiles with article counts.
+- /creator/[id] : Creator profile page with follow state, achievements, and published articles.
+- /events : Upcoming events list with basic metadata.
+- /event/[id] : Event detail page with RSVP controls.
+- /games : Games hub with featured game cards.
+- /games/quizzes : Quiz categories and entry point to trivia content.
+- /quiz/[quizId] : Standard quiz flow (question by question, results, attempt saved).
+- /quiz/create : Quiz creation form (UI-only in MVP).
+- /learn : Learning path overview with track selection, progress, and leaderboard.
+- /learn/[trackId] : Track detail and module list with progress.
+- /learn/collection : Word collection and tiered progress display.
+- /lesson/[lessonId] : Immersive lesson game experience; requires moduleId query param.
+- /journalist : Creator dashboard for drafts, published stories, and tools.
+- /journalist/analytics : Analytics placeholder and KPI cards.
+- /journalist/drafts : Drafts list with edit entry points.
+- /write : Article editor for creating new stories.
+- /write/[id] : Article editor for updating existing stories.
+- /pricing : Subscription tiers and upgrade entry.
+- /subscription/success : Post-checkout success confirmation.
+- /shop : Local perks marketplace (premium upsell).
+- /settings : Profile editing, appearance, and subscription management entry.
+- /profile : Redirects to the logged-in user's creator profile.
+
+Chapter 2 - Brand and Mission
+- Mission: Build a community-driven European news and learning platform where real people share local stories, culture, and perspectives.
+- Purpose: Combine journalism, language learning, and community events to create a sense of shared European identity and civic curiosity.
+- Feeling: Warm, editorial, and optimistic; modern but rooted in tradition, with emphasis on authenticity and local voices.
+- Focus: Readers become active participants through reading, learning tracks, quizzes, comments, and creator tools.
+- Conversion goal: Prioritize smoothness and native mobile feel in Flutter, with fast perceived performance and seamless transitions.
+
+Chapter 3 - Design System Snapshot
+- Typography: Sans for UI (Outfit) and serif for headings/editorial emphasis (Libre Baskerville).
+- Primary palette: Deep indigo brand (primary #312e81, light #4f46e5, dark #1e1b4b).
+- Accent palette: Vibrant orange/coral (accent #f97316, light #fb923c, dark #ea580c).
+- Neutrals: Warm stone background (#fafaf9) with elevated white surfaces and muted gray text.
+- Status colors: Success emerald (#059669), destructive red (#dc2626).
+- Shape and spacing: Rounded corners (radius 0.75rem), soft borders, elevated cards.
+- Motion and effects: Frequent micro-animations and framer-motion transitions; glass/blur panels and hover-lift shadows.
+- Theme: Light by default with full dark mode tokens tuned to the same indigo/orange palette.
+
+Purpose
+- This file lists the important functions and interactive logic in the project that a new AI agent must replicate when converting the app to Flutter (iOS/Android).
+- Focus is on data flows, auth, Supabase usage, and user interactions. Pure styling-only UI primitives are summarized but not expanded.
+
+Key Data Models (lib/types.ts)
+- Profile, Article, QuizQuestion, Comment, Event, Word, UserWordProgress, Achievement, UserAchievement.
+- These map directly to Supabase tables and should become Flutter models.
+
+Environment Variables (used in code)
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY (server/admin inserts)
+- NEUWS_AUTHOR_ID (API default author)
+- DATABASE_URL (migration script)
+
+Supabase Client + Session (lib/supabase)
+1) lib/supabase/client.ts - createClient()
+   - Returns Supabase browser client.
+   - On server: always new client; on client: reuses singleton.
+   - Uses NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+2) lib/supabase/server.ts - createClient()
+   - Creates Supabase server client using Next.js cookies.
+   - Supports getAll/setAll cookie bridge.
+3) lib/supabase/middleware.ts - updateSession(request)
+   - Creates server client, refreshes auth cookies.
+   - Redirects unauthenticated users to /auth/login (except /auth, /_next, /).
+4) middleware.ts - middleware(request)
+   - Calls updateSession; config matcher excludes static/image assets.
+
+Core Utilities (lib)
+5) lib/utils.ts - cn(...inputs)
+   - Tailwind class merge helper. In Flutter, not needed; replace with style composition.
+6) lib/constants.ts
+   - getColorScheme(schemeId) -> returns color scheme config or default.
+   - getDeterministicColorScheme(articleId) -> stable color scheme based on hash.
+   - ARTICLE_COLOR_SCHEMES, DEFAULT_COLOR_SCHEME, AVAILABLE_TOPICS.
+7) lib/country-utils.ts
+   - getCountryName(code)
+   - getCountryFlag(code)
+   - getAllCountries()
+8) lib/encouragements.ts - getRandomEncouragement()
+   - Random encouragement message used on completion.
+9) lib/stripe-mock.ts
+   - createCheckoutSession(priceId): mock checkout session (simulated delay, returns URL).
+   - getSubscriptionStatus(userId): mock subscription status.
+
+Server Actions (app/actions/learn.ts)
+10) getTracks(languageCode?)
+    - Selects published learning_tracks; optional language filter.
+11) getTrackModules(trackId)
+    - Fetches learning_modules for track with article slug.
+    - Loads user_progress to compute isCompleted/isLocked/isCurrent.
+12) setActiveTrack(trackId)
+    - Updates profiles.current_track_id for logged-in user.
+    - revalidatePath(/learn)
+13) getLesson(lessonId)
+    - Fetches quiz + quiz_questions for given quiz ID.
+14) completeLesson(lessonId, moduleId, correctWordIds)
+    - Marks module completed in user_progress.
+    - Awards points to profile from learning_modules.points_reward.
+    - Updates user_word_progress tiers (none/bronze/silver/gold) with counts.
+    - Unlocks hardcoded achievement (humble_beginnings).
+    - revalidatePath(/learn, /profile)
+15) getUserProfile()
+    - Fetches current user profile.
+16) getAchievements(userId?)
+    - Fetches user_achievements joined with achievements.
+17) getWordCollection(languageCode)
+    - Fetches user_word_progress joined with words; filters by language.
+18) completeModule(moduleId)
+    - Marks module completed and awards points (no word progress).
+
+API Routes (app/api)
+19) app/api/articles/route.ts
+    - slugifyTitle(title): slug + time suffix.
+    - buildExcerpt(content): first 200 chars.
+    - estimateReadTimeMinutes(content): words/200.
+    - POST(request): validates payload, inserts into articles via service role.
+20) app/api/checkout/route.ts
+    - POST(request): authenticated; maps tier to mock product; returns checkout URL.
+21) app/(auth)/auth/confirm/route.ts
+    - GET(request): verifies OTP token_hash/type with Supabase; redirects to next or error.
+
+Auth + Onboarding Screens (app/(auth))
+22) LoginPage (app/(auth)/auth/login/page.tsx)
+    - handleLogin: supabase.auth.signInWithPassword; redirect to / on success.
+23) SignUp (app/(auth)/auth/sign-up/page.tsx)
+    - handleInterestToggle: toggle interest in state.
+    - handleSignUp: supabase.auth.signUp with user metadata (display_name, country_code, interests).
+24) VerifyEmailPage / AuthErrorPage
+    - UI only; no logic.
+25) AuthLayout (app/(auth)/layout.tsx)
+    - Simple wrapper.
+
+Main App Layouts
+26) RootLayout (app/layout.tsx)
+    - Loads fonts; wraps children with AppProviders.
+27) ShellLayout (app/(shell)/layout.tsx)
+    - Layout with Header + Footer.
+28) ImmersiveLayout (app/(immersive)/layout.tsx)
+    - Simple wrapper.
+
+Home + Discovery
+29) HomePage (app/(shell)/page.tsx)
+    - If no user: render LandingPage.
+    - If user: fetch profile + published articles; render UserDashboard.
+30) DiscoverPage (app/(shell)/discover/page.tsx) -> renders DiscoverClient.
+31) DiscoverClient (discover-client.tsx)
+    - Local state selectedCountry; uses EuropeMap; mock country stories.
+
+Articles
+32) ArticlePage (app/(shell)/article/[slug]/page.tsx)
+    - Fetches article by slug + author.
+    - Gets user; checks like/bookmark state.
+    - Counts likes; increments view_count (fire-and-forget update).
+    - Renders ArticleActions, PolyglotReader, CommentSection, ModuleCompletion (learn mode).
+33) ArticleActions (components/article-actions.tsx)
+    - handleLike: insert/delete in likes; updates local count.
+    - handleBookmark: insert/delete in bookmarks.
+34) ArticleEditor (components/article-editor.tsx)
+    - fetchArticle() on edit mode.
+    - generateSlug(title)
+    - handleSubmit(e, publish): insert/update articles with slug, excerpt, read_time, etc.
+35) ArticleReadingHeader (components/article-reading-header.tsx)
+    - Scroll progress, completion state, random encouragement when complete.
+36) CommentSection (components/comment-section.tsx)
+    - loadComments: fetch comments with profiles, build tree, sort by newest.
+    - handleSubmit: insert comment or reply.
+    - CommentItem: handleLike/handleDislike/handleSave (client-only state).
+
+Bookmarks + Creators
+37) BookmarksPage (app/(shell)/bookmarks/page.tsx)
+    - Fetch bookmarks joined with articles.
+38) CreatorsPage (app/(shell)/creators/page.tsx)
+    - Fetch profiles where is_creator = true with article count.
+39) CreatorPage (app/(shell)/creator/[id]/page.tsx)
+    - Fetch creator profile, articles, follower/following counts, follow state.
+40) FollowButton (components/follow-button.tsx)
+    - handleFollow: insert/delete in followers.
+41) AchievementsList (components/achievements-list.tsx)
+    - Calls getAchievements(userId) and renders list.
+
+Events
+42) EventsPage (app/(shell)/events/page.tsx)
+    - Fetch upcoming events with creator + attendees count.
+43) EventPage (app/(shell)/event/[id]/page.tsx)
+    - Fetch event detail, user attendance status, attendees count.
+44) EventRSVP (components/event-rsvp.tsx)
+    - handleRSVP: upsert/delete event_attendees with status.
+
+Learning + Quizzes
+45) LearnPage (app/(shell)/learn/page.tsx)
+    - Uses getTracks/getTrackModules/getUserProfile.
+    - getTrackIcon helper.
+    - Renders LevelNode path; computes progress.
+    - LeaderboardItem + FlameIcon local helpers.
+46) TrackPage (app/(shell)/learn/[trackId]/page.tsx)
+    - Fetch track + modules + user_progress; compute completion.
+47) CollectionPage (app/(shell)/learn/collection/page.tsx)
+    - Uses getWordCollection; WordCard helper renders tier display.
+48) LessonPage (app/(immersive)/lesson/[lessonId]/page.tsx)
+    - Uses getLesson; requires moduleId param; renders LessonGame.
+49) LessonGame (components/lesson-game.tsx)
+    - handleCheck(): evaluate answer by question_type.
+    - handleOptionSelect(): auto-check for select types.
+    - handleTokenClick(): sentence builder token moves.
+    - handleMatchSelect(): matching logic.
+    - handleNext(): advance; on last question calls completeLesson.
+50) QuizPage (app/(shell)/quiz/[quizId]/page.tsx) -> wrapper for QuizClient.
+51) QuizClient (quiz-client.tsx)
+    - loadQuiz(): fetch quiz + quiz_questions.
+    - handleAnswerSelect/handleNext/handlePrevious/handleSubmit.
+    - handleSubmit inserts quiz_attempts.
+
+Subscriptions + Pricing
+52) PricingPage (app/(shell)/pricing/page.tsx)
+    - Fetches profile.subscription_tier; renders tiers.
+53) SubscribeButton (components/subscribe-button.tsx)
+    - handleSubscribe(): POST /api/checkout; redirect to session URL.
+54) SubscriptionSuccessPage
+    - UI only.
+
+Profile + Settings
+55) ProfilePage (app/(shell)/profile/page.tsx)
+    - Redirects logged-in user to /creator/{id}.
+56) SettingsPage (app/(shell)/settings/page.tsx)
+    - Fetch profile; renders ProfileSettings + ThemeSettings.
+57) ProfileSettings (components/profile-settings.tsx)
+    - handleSubmit: updates profiles (display_name, bio, city, country_code).
+58) ThemeSettings (components/theme-settings.tsx)
+    - Uses next-themes; persists local theme selection.
+59) UserMenu (components/user-menu.tsx)
+    - handleSignOut: supabase.auth.signOut + navigate home.
+
+Dashboard + Navigation
+60) Header (components/header.tsx)
+    - Fetch user + profile (streak_days, points) on server.
+61) HeaderClient (components/header-client.tsx)
+    - navItemClass() to style active nav; renders menus.
+62) MobileNav (components/mobile-nav.tsx)
+    - Slide-over navigation; no data logic.
+63) CommandPalette (components/command-palette.tsx)
+    - useHotkeys(): opens palette on Ctrl+K or /.
+    - navigate(): router.push and close.
+64) UserDashboard (components/dashboard/user-dashboard.tsx)
+    - handleUpdateCustomTabs(): updates profiles.saved_tabs.
+    - getCurrentTabInfo(): label + color per tab.
+65) TabManager (components/dashboard/tab-manager.tsx)
+    - handleAddTab(): add topic tab.
+    - handleDeleteTab(): remove tab; reset active.
+66) DashboardHeader (components/dashboard/dashboard-header.tsx)
+    - updateDateTime(): updates clock every second.
+67) ArticleGrid / JustPublishedList
+    - Filter articles by active tab (category/topics/city).
+68) LevelNode (components/level-node.tsx)
+    - Computes status-based classes and link behavior.
+
+Landing + Marketing
+69) LandingPage (components/landing-page/landing-page.tsx)
+    - scrollToBento(): smooth scroll to LiveBentoGrid.
+70) LiveBentoGrid (components/landing-page/live-bento-grid.tsx)
+    - generateEvent(): fake live events.
+    - EventIcon, EventCard components.
+    - useEffect: initial populate and rolling updates.
+71) Footer (components/footer.tsx)
+    - SocialLink + FooterLink helpers.
+
+Other UI Components with Custom Logic
+72) MultiSelect (components/ui/multi-select.tsx)
+    - handleSelect/handleUnselect; searchable dropdown; used in ArticleEditor.
+73) useToast (hooks/use-toast.ts and components/ui/use-toast.ts)
+    - reducer, dispatch, toast(), useToast(); global toast queue.
+74) useIsMobile (hooks/use-mobile.ts and components/ui/use-mobile.tsx)
+    - matchMedia breakpoint hook.
+
+Developer Scripts (not runtime, but affect data)
+75) scripts/seed_dashboard_data.ts
+    - seed(): creates users (admin), upserts profiles, inserts fake articles.
+76) scripts/run_migration.ts
+    - runMigration(): reads SQL file and runs via pg client.
+77) scripts/fix_article_layout.ts
+    - fixArticle(): updates article header_layout to immersive for France Tech Renaissance.
+78) scripts/debug_migration.ts
+    - checkEnv(): logs if DATABASE_URL exists.
+79) scripts/check_article_layout.ts
+    - checkArticle(): queries articles by title and logs header_layout.
+
+Notes for Flutter Conversion
+- Mobile smoothness requirement: Implement cache-first app startup. Immediately render last-known key screens from local cache (including user state and the most recent core data needed for navigation), then refresh everything in the background using ETag/TTL and update seamlessly. Prefetch likely-next content and use LRU eviction for larger payloads. Add a very short (1s) logo splash animation that runs while background refresh starts, but never blocks showing cached UI as soon as it’s available.
+- Supabase integration is core: auth, data, and storage are all via Supabase.
+- Many pages are server-rendered in Next.js; in Flutter these become client fetches.
+- Critical data tables used: profiles, articles, likes, bookmarks, comments, followers, events, event_attendees, learning_tracks, learning_modules, user_progress, quizzes, quiz_questions, quiz_attempts, words, user_word_progress, achievements, user_achievements.
+- Stripe is mocked; app expects /api/checkout to return a URL.
+- Article read time, excerpt, and slug generation logic should be preserved for parity.
+- Learning game types supported: SELECT_ONE, SELECT_IMAGE, SENTENCE_BUILDER, MATCHING, LISTENING.
