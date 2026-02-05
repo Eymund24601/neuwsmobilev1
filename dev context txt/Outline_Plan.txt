@@ -1,0 +1,165 @@
+NEUWS Mobile MVP Outline - Phase v2 (Locked Home/Article)
+
+Date: February 4, 2026
+Owner: Codex + User
+
+==================================================
+0) Non-Negotiable Constraints (Locked)
+==================================================
+- Home page UI/UX is locked: do not modify `lib/screens/home_page.dart`.
+- Article page UI/UX is locked: do not modify `lib/screens/article_page.dart`.
+- Bottom nav is locked to exactly 5 tabs:
+  1) Home
+  2) Messages
+  3) Learn
+  4) Games
+  5) You
+- No standalone Discover in this phase.
+- Country content appears as topic/country feed variants (same mental model as Lifestyle/Opinion sections).
+
+==================================================
+1) Today Goals
+==================================================
+- Build all missing non-Home/non-Article screens as lightweight connected flows.
+- Centralize routes with typed names and clean path params.
+- Add backend-ready architecture:
+  - repository interfaces
+  - mock implementations
+  - Supabase stub implementations (not wired yet)
+- Add backend mapping document for Supabase handoff.
+- Keep UX simple and avoid overcomplication.
+
+==================================================
+2) Progress Tracker
+==================================================
+[x] Route architecture introduced with typed route names/paths.
+[x] Bottom-nav shell preserved at 5 tabs.
+[x] Messages upgraded from "coming soon" to structured inbox placeholder.
+[x] Learn tab upgraded to track list with progress + track detail navigation.
+[x] Learn Track Detail page added.
+[x] Lesson page scaffold added (question flow + completion state).
+[x] Games tab extended with quiz-category entry points.
+[x] Quiz Categories page added.
+[x] Quiz Play scaffold page added.
+[x] Events list wired to Event Detail page.
+[x] Event Detail page added.
+[x] Topic/Country Feed page added (`/feed/:topicOrCountryCode`).
+[x] You tab enhanced with Settings/Pricing/Creator Studio/Saved shortcuts.
+[x] Settings page added.
+[x] Pricing page added.
+[x] Creator Studio page added.
+[x] Write flow scaffold page added.
+[x] Repository interfaces created for all required domains.
+[x] Mock repositories created and connected.
+[x] Supabase repository stubs created for future wiring.
+[x] Backend outline document added (`docs/backend_outline.md`).
+[x] App moved to `MaterialApp.router` with centralized router config.
+[x] Home data wired to provider/cache-backed article + track sources (UI kept intact).
+[x] Article loading unified through route + provider/cache (`/article/:slug`) while reusing existing Article UI.
+[x] Cache-first + stale-while-revalidate data layer added for core features.
+[x] Startup prefetch added for high-probability next reads.
+[ ] Supabase runtime integration (deferred).
+[ ] Auth/session handling (deferred).
+[ ] Full offline sync engine (deferred).
+
+==================================================
+3) Route Map (Current)
+==================================================
+Shell Tabs
+- /home
+- /messages
+- /learn
+- /games
+- /you
+
+Secondary Routes
+- /saved
+- /events
+- /events/:eventId
+- /article/:slug
+- /feed/:topicOrCountryCode
+- /learn/track/:trackId
+- /lesson/:lessonId
+- /games/quizzes
+- /games/quiz/:quizId
+- /settings
+- /pricing
+- /creator-studio
+- /write
+
+==================================================
+4) Architecture (Current)
+==================================================
+Dependencies
+- go_router
+- flutter_riverpod
+- shared_preferences
+
+Routing
+- Centralized in `lib/app/app_router.dart`
+- Names and paths in `lib/app/app_routes.dart`
+- Bottom-nav shell scaffold in `lib/app/app_shell_scaffold.dart`
+- Article entry wrapper route in `lib/screens/article_entry_page.dart` to keep article UI unchanged while using provider data.
+
+Data Runtime
+- Cache-first provider layer in `lib/providers/feature_data_providers.dart`
+- SharedPreferences + memory cache in `lib/services/cache/cache_service.dart`
+- Stale-while-revalidate behavior for key feeds/details
+- Startup prefetch for top stories/tracks/events/profile/quiz categories
+
+Data Contracts (Interfaces)
+- ArticleRepository
+- LearnRepository
+- GamesRepository
+- EventsRepository
+- ProfileRepository
+- CreatorRepository
+- SettingsRepository
+
+Models Added
+- ArticleSummary
+- ArticleDetail
+- TopicFeed
+- EventSummary
+- QuizSummary
+- TrackSummary (+ module/lesson models)
+- UserProfile
+- SubscriptionTier
+
+Source Swapping Strategy
+- Mock repositories are active by default via Riverpod providers.
+- Supabase repositories exist as stubs with matching interfaces.
+- Switch path:
+  - keep method signatures stable
+  - replace provider wiring from mock to Supabase
+
+==================================================
+5) Validation Checklist (Today)
+==================================================
+- Route smoke checks for all secondary flows.
+- Bottom nav still 5 fixed items.
+- Home -> Saved/Event still works.
+- Home -> Article works through `/article/:slug` with provider/cache-backed fetch.
+- Learn -> Track -> Lesson works.
+- Games -> Quiz Categories -> Quiz works.
+- You -> Settings/Pricing/Creator Studio works.
+- `flutter analyze` passes.
+- `flutter test` passes.
+
+==================================================
+6) Deferred (Next Phase)
+==================================================
+- Supabase auth integration.
+- Supabase data read/write integration for each repository.
+- Real article detail fetch by slug (Supabase repository implementation).
+- Quiz attempt persistence.
+- Event RSVP persistence.
+- Theme + settings persistence.
+- Advanced cache policy tuning + invalidation rules by feature.
+
+==================================================
+7) Notes for Collaboration
+==================================================
+- If a future change touches Home or Article UX, treat it as explicit opt-in and ask first.
+- Keep all new pages intentionally lean; avoid adding another primary nav destination.
+- Keep country/topic exploration inside feed variants, not as a separate Discover product.

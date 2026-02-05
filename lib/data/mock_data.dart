@@ -1,4 +1,4 @@
-﻿class HeroStory {
+class HeroStory {
   const HeroStory({
     required this.title,
     required this.date,
@@ -20,10 +20,15 @@ class ListStory {
 }
 
 class CreatorStory {
-  const CreatorStory({required this.title, required this.author});
+  const CreatorStory({
+    required this.title,
+    required this.name,
+    required this.location,
+  });
 
   final String title;
-  final String author;
+  final String name;
+  final String location;
 }
 
 class MiniGame {
@@ -58,12 +63,14 @@ class EventItem {
     required this.location,
     required this.date,
     required this.tag,
+    required this.imageAsset,
   });
 
   final String title;
   final String location;
   final String date;
   final String tag;
+  final String imageAsset;
 }
 
 class ArticleContent {
@@ -73,6 +80,7 @@ class ArticleContent {
     required this.date,
     required this.imageAsset,
     required this.topic,
+    required this.excerpt,
     required this.readTime,
     required this.authorName,
     required this.authorLocation,
@@ -87,6 +95,7 @@ class ArticleContent {
   final String date;
   final String imageAsset;
   final String topic;
+  final String excerpt;
   final String readTime;
   final String authorName;
   final String authorLocation;
@@ -98,7 +107,8 @@ class ArticleContent {
 
 class HomeMockData {
   static const hero = HeroStory(
-    title: 'Is Your Social Life Missing Something? This Conversation Is for You.',
+    title:
+        'Is Your Social Life Missing Something? This Conversation Is for You.',
     date: 'FEBRUARY 3, 2026',
     byline: 'Ezra Klein and Annie Galvin',
     imageAsset: 'assets/images/placeholder.jpg',
@@ -106,7 +116,8 @@ class HomeMockData {
 
   static const listStories = [
     ListStory(
-      title: 'Trump Could Interfere With the Midterm Elections. You Can Help Defend Them.',
+      title:
+          'Trump Could Interfere With the Midterm Elections. You Can Help Defend Them.',
       date: 'JANUARY 31, 2026',
     ),
     ListStory(
@@ -118,15 +129,33 @@ class HomeMockData {
   static const creators = [
     CreatorStory(
       title: 'A Night Train Diary Through the Baltics',
-      author: 'Lea Novak - Slovenia',
+      name: 'Lea Novak',
+      location: 'Ljubljana, Slovenia',
     ),
     CreatorStory(
       title: 'Why Porto Feels Like the Future of Cities',
-      author: 'Miguel Sousa - Portugal',
+      name: 'Miguel Sousa',
+      location: 'Porto, Portugal',
     ),
     CreatorStory(
       title: 'The Quiet Politics of Finnish Saunas',
-      author: 'Aino Jarvinen - Finland',
+      name: 'Aino Jarvinen',
+      location: 'Helsinki, Finland',
+    ),
+    CreatorStory(
+      title: 'What Bucharest Cafes Reveal About Youth Politics',
+      name: 'Andrei Popescu',
+      location: 'Bucharest, Romania',
+    ),
+    CreatorStory(
+      title: 'The New Folk Scene in Krakow',
+      name: 'Maja Nowak',
+      location: 'Krakow, Poland',
+    ),
+    CreatorStory(
+      title: 'Athens by Night: Work, Rent, and Real Life',
+      name: 'Nikos Petrou',
+      location: 'Athens, Greece',
     ),
   ];
 
@@ -142,9 +171,18 @@ class HomeMockData {
   );
 
   static const savedStories = [
-    SavedStory(title: 'How Lisbon Rewrote Its Startup Playbook', date: 'JANUARY 30, 2026'),
-    SavedStory(title: 'The Quiet Politics of Finnish Saunas', date: 'JANUARY 28, 2026'),
-    SavedStory(title: 'What the Balkans Teach Us About Resilience', date: 'JANUARY 24, 2026'),
+    SavedStory(
+      title: 'How Lisbon Rewrote Its Startup Playbook',
+      date: 'JANUARY 30, 2026',
+    ),
+    SavedStory(
+      title: 'The Quiet Politics of Finnish Saunas',
+      date: 'JANUARY 28, 2026',
+    ),
+    SavedStory(
+      title: 'What the Balkans Teach Us About Resilience',
+      date: 'JANUARY 24, 2026',
+    ),
   ];
 
   static const events = [
@@ -153,18 +191,21 @@ class HomeMockData {
       location: 'Vienna, Austria',
       date: 'FEB 14 · 19:00',
       tag: 'Culture',
+      imageAsset: 'assets/images/placeholder.jpg',
     ),
     EventItem(
       title: 'EU Elections Watch Party',
       location: 'Brussels, Belgium',
       date: 'FEB 18 · 20:00',
       tag: 'Politics',
+      imageAsset: 'assets/images/placeholder.jpg',
     ),
     EventItem(
       title: 'Nordic Design Meetup',
       location: 'Helsinki, Finland',
       date: 'FEB 21 · 18:30',
       tag: 'Design',
+      imageAsset: 'assets/images/placeholder.jpg',
     ),
   ];
 
@@ -174,6 +215,8 @@ class HomeMockData {
     date: 'FEBRUARY 3, 2026',
     imageAsset: 'assets/images/placeholder.jpg',
     topic: 'World Politics',
+    excerpt:
+        'For three years, Xi Jinping has been removing top military figures, reshaping command and raising new questions across Europe.',
     readTime: '6 min read',
     authorName: 'Marta Keller',
     authorLocation: 'Vienna, Austria',
@@ -190,7 +233,15 @@ Pa kort sikt har utrensningarna gjort kedjan av befalsord mer sluten. Kritiker m
 
 Flera forsvarsanalytiker pekar pa att yngre officerare nu avancerar snabbare, men med farre fria ramar.
 
-For vanliga soldater handlar vardagen fortfarande om logistik, ovningar och disciplin, men samtalen i korridorerna ar mer forsiktiga.''',
+For vanliga soldater handlar vardagen fortfarande om logistik, ovningar och disciplin, men samtalen i korridorerna ar mer forsiktiga.
+
+I vissa regioner har det aven rapporterats om forsiktigare kommunikation mellan civila myndigheter och militaera representanter.
+
+Samtidigt forsoker statliga medier framstalla omstallningen som ett steg mot effektivitet, inte oro.
+
+Den praktiska effekten ar att beslutsvagar blivit kortare i toppen men langsammare langre ner i organisationen.
+
+Europeiska observatorer noterar att signalerna ar blandade: stark central kontroll men oklar framtida riktning i flera fragor.''',
     bodyBottom:
         '''For three years, Xi Jinping has been cleaning out the military elite. A wave of dismissals and disappearances has swept across multiple branches of senior command.
 
@@ -202,6 +253,14 @@ In the short term, the purge has tightened the chain of command. Critics argue t
 
 Several defense analysts say younger officers are moving up faster, but with fewer areas of discretion.
 
-For ordinary soldiers, daily life is still about logistics, drills, and discipline, yet the hallway conversations have grown more cautious.''',
+For ordinary soldiers, daily life is still about logistics, drills, and discipline, yet hallway conversations have grown more cautious.
+
+In some regions, observers also report more guarded communication between civilian agencies and military representatives.
+
+State media continues to frame the reorganization as a modernization effort rather than a sign of internal stress.
+
+The practical result is mixed: decision loops may be shorter at the top but slower further down the structure.
+
+European analysts describe the picture as contradictory: stronger central control alongside less clarity about long-term direction.''',
   );
 }

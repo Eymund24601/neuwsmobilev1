@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../data/mock_data.dart';
 import '../theme/app_theme.dart';
@@ -45,10 +46,7 @@ class _ArticlePageState extends State<ArticlePage> {
   }
 
   String _cleanLanguage(String value) {
-    return value
-        .replaceAll('Learning:', '')
-        .replaceAll('Native:', '')
-        .trim();
+    return value.replaceAll('Learning:', '').replaceAll('Native:', '').trim();
   }
 
   void _handleScroll() {
@@ -88,61 +86,104 @@ class _ArticlePageState extends State<ArticlePage> {
     final article = widget.article;
 
     return Scaffold(
-      body: SafeArea(
-        child: CustomScrollView(
-          controller: _controller,
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new),
+      appBar: AppBar(
+        title: Text(
+          'nEUws',
+          style: GoogleFonts.libreBaskerville(fontWeight: FontWeight.w700),
+        ),
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_ios_new),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.bookmark_border),
+            tooltip: 'Save',
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.send_outlined),
+            tooltip: 'Send',
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: CustomScrollView(
+        controller: _controller,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: Text(
+                article.title,
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontSize: 34,
+                      height: 1.1,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.bookmark_border),
-                      tooltip: 'Save',
-                    ),
-                    IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.share_outlined),
-                      tooltip: 'Share',
-                    ),
-                  ],
-                ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Image.asset(
-                        article.imageAsset,
-                        height: 210,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
+          ),
+          SliverToBoxAdapter(
+            child: Image.asset(
+              article.imageAsset,
+              height: 250,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: Text(
+                article.excerpt,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      height: 1.35,
+                      color: palette.muted,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      article.title,
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                            fontSize: 28,
-                            height: 1.15,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        GestureDetector(
+                          onTap: () {},
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircleAvatar(
+                                radius: 18,
+                                backgroundImage: AssetImage('assets/images/placeholder-user.jpg'),
+                              ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    article.authorName,
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  Text(
+                                    article.authorLocation,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: palette.muted,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
@@ -159,131 +200,97 @@ class _ArticlePageState extends State<ArticlePage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () {},
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  article.authorName,
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                Text(
-                                  article.authorLocation,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: palette.muted,
-                                      ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 10),
-                            const CircleAvatar(
-                              radius: 18,
-                              backgroundImage: AssetImage('assets/images/placeholder-user.jpg'),
-                            ),
-                          ],
-                        ),
+                  ),
+                  Row(
+                    children: [
+                      _LanguageSelector(
+                        enabled: _polyglotEnabled,
+                        topLanguage: _languageTop,
+                        bottomLanguage: _languageBottom,
+                        languages: _languages,
+                        onTopSelected: _setTopLanguage,
+                        onBottomSelected: _setBottomLanguage,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Row(
-                          children: [
-                            _IconAction(icon: Icons.chat_bubble_outline, onTap: () {}),
-                            _IconAction(icon: Icons.send_outlined, onTap: () {}),
-                            _IconAction(icon: Icons.bookmark_border, onTap: () {}),
-                          ],
-                        ),
-                        const Spacer(),
-                        _LanguageSelector(
-                          enabled: _polyglotEnabled,
-                          topLanguage: _languageTop,
-                          bottomLanguage: _languageBottom,
-                          languages: _languages,
-                          onTopSelected: _setTopLanguage,
-                          onBottomSelected: _setBottomLanguage,
-                        ),
-                        Switch(
-                          value: _polyglotEnabled,
-                          onChanged: _togglePolyglot,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      Switch(
+                        value: _polyglotEnabled,
+                        onChanged: _togglePolyglot,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                child: _PolyglotReader(
-                  splitActive: _splitActive,
-                  polyglotEnabled: _polyglotEnabled,
-                  labelTop: article.date,
-                  labelBottom: _polyglotEnabled ? '' : article.date,
-                  bodyTop: article.bodyTop,
-                  bodyBottom: article.bodyBottom,
-                ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+              child: Text(
+                article.date,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: palette.muted,
+                      letterSpacing: 1.1,
+                    ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Up next', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(16),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
+              child: _PolyglotReader(
+                splitActive: _splitActive,
+                polyglotEnabled: _polyglotEnabled,
+                bodyTop: article.bodyTop,
+                bodyBottom: article.bodyBottom,
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: palette.surfaceAlt,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Row(
                         children: [
+                          const CircleAvatar(
+                            radius: 16,
+                            backgroundImage: AssetImage('assets/images/placeholder-user.jpg'),
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Play today\'s quick crossword based on this story',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.2),
+                              article.authorName,
+                              style: Theme.of(context).textTheme.titleSmall,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const Icon(Icons.arrow_forward_ios, size: 16),
+                          OutlinedButton(
+                            onPressed: () {},
+                            child: const Text('Follow'),
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: () {
+                      // TODO: Connect Collect Words to Learn word-practice flow for this article.
+                    },
+                    child: const Text('Collect Words'),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _IconAction extends StatelessWidget {
-  const _IconAction({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Icon(icon, size: 20),
+          ),
+        ],
       ),
     );
   }
@@ -335,7 +342,6 @@ class _LanguageSelector extends StatelessWidget {
       children: [
         _LanguageFlag(
           label: _codeFor(topLanguage),
-          value: topLanguage,
           options: languages,
           onSelected: onTopSelected,
           palette: palette,
@@ -344,7 +350,6 @@ class _LanguageSelector extends StatelessWidget {
           const SizedBox(width: 6),
           _LanguageFlag(
             label: _codeFor(bottomLanguage),
-            value: bottomLanguage,
             options: languages,
             onSelected: onBottomSelected,
             palette: palette,
@@ -358,14 +363,12 @@ class _LanguageSelector extends StatelessWidget {
 class _LanguageFlag extends StatelessWidget {
   const _LanguageFlag({
     required this.label,
-    required this.value,
     required this.options,
     required this.onSelected,
     required this.palette,
   });
 
   final String label;
-  final String value;
   final List<String> options;
   final ValueChanged<String> onSelected;
   final NeuwsPalette palette;
@@ -404,27 +407,24 @@ class _PolyglotReader extends StatelessWidget {
   const _PolyglotReader({
     required this.splitActive,
     required this.polyglotEnabled,
-    required this.labelTop,
-    required this.labelBottom,
     required this.bodyTop,
     required this.bodyBottom,
   });
 
   final bool splitActive;
   final bool polyglotEnabled;
-  final String labelTop;
-  final String labelBottom;
   final String bodyTop;
   final String bodyBottom;
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.of(context).size.height * 0.65;
+    final screen = MediaQuery.of(context);
+    final immersiveHeight = screen.size.height - kToolbarHeight - screen.padding.top - 8;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
-      height: polyglotEnabled ? height : null,
+      height: polyglotEnabled && splitActive ? immersiveHeight : null,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
         switchInCurve: Curves.easeOut,
@@ -439,19 +439,15 @@ class _PolyglotReader extends StatelessWidget {
             ? (splitActive
                 ? _SplitReader(
                     key: const ValueKey('split'),
-                    labelTop: labelTop,
-                    labelBottom: labelBottom,
                     bodyTop: bodyTop,
                     bodyBottom: bodyBottom,
                   )
                 : _SingleReader(
                     key: const ValueKey('single'),
-                    label: labelTop,
                     body: bodyTop,
                   ))
             : _SingleReader(
                 key: const ValueKey('single-off'),
-                label: labelTop,
                 body: bodyBottom,
               ),
       ),
@@ -460,30 +456,21 @@ class _PolyglotReader extends StatelessWidget {
 }
 
 class _SingleReader extends StatelessWidget {
-  const _SingleReader({super.key, required this.label, required this.body});
+  const _SingleReader({super.key, required this.body});
 
-  final String label;
   final String body;
 
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<NeuwsPalette>()!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (label.isNotEmpty) ...[
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.muted),
-          ),
-          const SizedBox(height: 12),
-        ],
-        Text(
-          body,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Text(
+        body,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontSize: 20,
+              height: 1.62,
+            ),
+      ),
     );
   }
 }
@@ -491,14 +478,10 @@ class _SingleReader extends StatelessWidget {
 class _SplitReader extends StatefulWidget {
   const _SplitReader({
     super.key,
-    required this.labelTop,
-    required this.labelBottom,
     required this.bodyTop,
     required this.bodyBottom,
   });
 
-  final String labelTop;
-  final String labelBottom;
   final String bodyTop;
   final String bodyBottom;
 
@@ -549,21 +532,13 @@ class _SplitReaderState extends State<_SplitReader> {
         Expanded(
           child: SingleChildScrollView(
             controller: _topController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.labelTop.isNotEmpty) ...[
-                  Text(
-                    widget.labelTop,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.muted),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              widget.bodyTop,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontSize: 20,
+                    height: 1.62,
                   ),
-                  const SizedBox(height: 12),
-                ],
-                Text(
-                  widget.bodyTop,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
-                ),
-              ],
             ),
           ),
         ),
@@ -574,21 +549,13 @@ class _SplitReaderState extends State<_SplitReader> {
         Expanded(
           child: SingleChildScrollView(
             controller: _bottomController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.labelBottom.isNotEmpty) ...[
-                  Text(
-                    widget.labelBottom,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.muted),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              widget.bodyBottom,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontSize: 20,
+                    height: 1.62,
                   ),
-                  const SizedBox(height: 12),
-                ],
-                Text(
-                  widget.bodyBottom,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
-                ),
-              ],
             ),
           ),
         ),

@@ -1,204 +1,285 @@
-﻿import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'dart:math';
 
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../app/app_routes.dart';
 import '../data/mock_data.dart';
+import '../models/article_summary.dart';
+import '../models/event_summary.dart';
+import '../providers/cache_providers.dart';
+import '../providers/feature_data_providers.dart';
 import '../theme/app_theme.dart';
-import 'article_page.dart';
-import 'events_page.dart';
-import 'saved_page.dart';
+import '../widgets/primary_top_bar.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> {
+  static const _tabsPreferenceKey = 'home.tabs.v1';
+  static const _defaultArticleSlug = 'europe-social-club';
+
+  final List<String> _defaultTabs = const [
+    'Today',
+    'Lifestyle',
+    'Opinion',
+    'Sections',
+  ];
+  final ScrollController _creatorsController = ScrollController();
+  final ScrollController _eventsController = ScrollController();
+
+  List<String> _tabs = const ['Today', 'Lifestyle', 'Opinion', 'Sections'];
   int _activeTab = 0;
+  int _visibleCreatorCount = 3;
+  int _visibleEventCount = 3;
+  int _eventTotalForPagination = 0;
 
-  final List<String> _tabs = const ['Today', 'Lifestyle', 'Opinion', 'Sections'];
+  @override
+  void initState() {
+    super.initState();
+    _creatorsController.addListener(_loadMoreCreatorsIfNeeded);
+    _eventsController.addListener(_loadMoreEventsIfNeeded);
+    _loadSavedTabs();
+  }
 
-  void _openArticle() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ArticlePage(article: HomeMockData.article)),
+  @override
+  void dispose() {
+    _creatorsController
+      ..removeListener(_loadMoreCreatorsIfNeeded)
+      ..dispose();
+    _eventsController
+      ..removeListener(_loadMoreEventsIfNeeded)
+      ..dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSavedTabs() async {
+    final preferences = await ref.read(sharedPreferencesProvider.future);
+    final saved = preferences.getStringList(_tabsPreferenceKey);
+    if (!mounted || saved == null || saved.isEmpty) {
+      return;
+    }
+    setState(() {
+      _tabs = saved;
+      _activeTab = min(_activeTab, _tabs.length - 1);
+    });
+  }
+
+  Future<void> _saveTabs(List<String> tabs) async {
+    final preferences = await ref.read(sharedPreferencesProvider.future);
+    await preferences.setStringList(_tabsPreferenceKey, tabs);
+  }
+
+  void _loadMoreCreatorsIfNeeded() {
+    if (!_creatorsController.hasClients) {
+      return;
+    }
+    final nearEnd = _creatorsController.position.extentAfter < 220;
+    if (!nearEnd || _visibleCreatorCount >= HomeMockData.creators.length) {
+      return;
+    }
+    setState(() {
+      _visibleCreatorCount = min(
+        _visibleCreatorCount + 3,
+        HomeMockData.creators.length,
+      );
+    });
+  }
+
+  void _loadMoreEventsIfNeeded() {
+    if (!_eventsController.hasClients) {
+      return;
+    }
+    final nearEnd = _eventsController.position.extentAfter < 240;
+    if (!nearEnd || _visibleEventCount >= _eventTotalForPagination) {
+      return;
+    }
+    setState(() {
+      _visibleEventCount = min(
+        _visibleEventCount + 3,
+        _eventTotalForPagination,
+      );
+    });
+  }
+
+  void _openArticle(String slug) {
+    context.pushNamed(AppRouteName.article, pathParameters: {'slug': slug});
+  }
+
+  Future<void> _openTabEditor() async {
+    final nextTabs = await showModalBottomSheet<List<String>>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        final controller = TextEditingController();
+        var working = List<String>.from(_tabs);
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Edit tabs',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final tab in working)
+                        InputChip(
+                          label: Text(tab),
+                          onDeleted: working.length <= 1
+                              ? null
+                              : () {
+                                  setModalState(() {
+                                    working.remove(tab);
+                                  });
+                                },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          decoration: const InputDecoration(
+                            hintText: 'Add tab (e.g. Tech, Sweden)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton(
+                        onPressed: () {
+                          final value = controller.text.trim();
+                          if (value.isEmpty) {
+                            return;
+                          }
+                          final exists = working.any(
+                            (item) => item.toLowerCase() == value.toLowerCase(),
+                          );
+                          if (exists) {
+                            return;
+                          }
+                          setModalState(() {
+                            working = [...working, value];
+                            controller.clear();
+                          });
+                        },
+                        child: const Text('Add'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(_defaultTabs),
+                        child: const Text('Reset'),
+                      ),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(working),
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
+
+    if (nextTabs == null || nextTabs.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _tabs = nextTabs;
+      _activeTab = min(_activeTab, _tabs.length - 1);
+    });
+    await _saveTabs(nextTabs);
+  }
+
+  List<ArticleSummary> _articleRows(List<ArticleSummary> stories) {
+    if (stories.isNotEmpty) {
+      return stories.take(4).toList();
+    }
+    return const [
+      ArticleSummary(
+        id: 'fallback-1',
+        slug: _defaultArticleSlug,
+        title:
+            'Is Your Social Life Missing Something? This Conversation Is for You.',
+        topic: 'Lifestyle',
+        countryCode: 'SE',
+        readTimeMinutes: 6,
+        publishedAtLabel: 'FEBRUARY 3, 2026',
+        isPremium: false,
+      ),
+      ArticleSummary(
+        id: 'fallback-2',
+        slug: _defaultArticleSlug,
+        title:
+            'How Communities Defend Elections Without Waiting for Institutions',
+        topic: 'Opinion',
+        countryCode: 'DE',
+        readTimeMinutes: 7,
+        publishedAtLabel: 'FEBRUARY 2, 2026',
+        isPremium: true,
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final hero = HomeMockData.hero;
-    final listStories = HomeMockData.listStories;
-    final creators = HomeMockData.creators;
-    final miniGames = HomeMockData.miniGames;
-    final learning = HomeMockData.learning;
+    final topStories =
+        ref.watch(topStoriesProvider).valueOrNull ?? const <ArticleSummary>[];
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final events =
+        ref.watch(eventsProvider).valueOrNull ?? const <EventSummary>[];
+
+    _eventTotalForPagination = events.length;
+
+    final articleRows = _articleRows(topStories);
+    final creators = HomeMockData.creators.take(_visibleCreatorCount).toList();
+    final visibleEvents = events
+        .take(min(_visibleEventCount, events.length))
+        .toList();
+    final eventsCity = profile?.city ?? 'your city';
 
     return SafeArea(
       child: Column(
         children: [
-          _HomeTopBar(
-            onBookmark: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SavedPage()),
-              );
-            },
-            onEvents: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const EventsPage()),
-              );
-            },
-          ),
-          _TopTabs(
-            tabs: _tabs,
-            activeIndex: _activeTab,
-            onTap: (index) => setState(() => _activeTab = index),
-            onEvents: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const EventsPage()),
-              );
-            },
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              children: [
-                Text('The Latest', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 16),
-                _HeroStoryCard(
-                  title: hero.title,
-                  date: hero.date,
-                  byline: hero.byline,
-                  imageAsset: hero.imageAsset,
-                  onTap: _openArticle,
-                ),
-                const SizedBox(height: 20),
-                _StoryRow(
-                  title: listStories[0].title,
-                  date: listStories[0].date,
-                  onTap: _openArticle,
-                ),
-                const SizedBox(height: 16),
-                _StoryRow(
-                  title: listStories[1].title,
-                  date: listStories[1].date,
-                  onTap: _openArticle,
-                ),
-                const SizedBox(height: 24),
-                const _SectionHeader(
-                  title: 'From real people like you',
-                  subtitle: 'Local voices across Europe',
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 190,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: creators.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) => _CreatorCard(
-                      title: creators[index].title,
-                      author: creators[index].author,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const _SectionHeader(
-                  title: 'Today\'s games',
-                  subtitle: '2 free plays - 1 remaining',
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MiniGameCard(
-                        title: miniGames[0].title,
-                        tag: miniGames[0].tag,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MiniGameCard(
-                        title: miniGames[1].title,
-                        tag: miniGames[1].tag,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const _SectionHeader(
-                  title: 'Continue learning',
-                  subtitle: 'EU Institutions - 52% complete',
-                ),
-                const SizedBox(height: 12),
-                _LearningCard(
-                  title: learning.title,
-                  subtitle: learning.subtitle,
-                  progress: learning.progress,
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: palette.surfaceCard,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: palette.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Perks & events', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 6),
-                            Text(
-                              '1 event and 2 perks near you',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: palette.muted,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios, size: 16),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HomeTopBar extends StatelessWidget {
-  const _HomeTopBar({required this.onBookmark, required this.onEvents});
-
-  final VoidCallback onBookmark;
-  final VoidCallback onEvents;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
-      child: Row(
-        children: [
-          const Spacer(),
-          Text(
-            'nEUws',
-            style: GoogleFonts.libreBaskerville(
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const Spacer(),
-          Row(
-            children: [
+          PrimaryTopBar(
+            title: 'neuws',
+            trailing: [
               IconButton(
-                onPressed: onBookmark,
+                onPressed: () => context.pushNamed(AppRouteName.saved),
                 icon: const Icon(Icons.bookmark_border),
                 tooltip: 'Saved',
               ),
@@ -208,6 +289,116 @@ class _HomeTopBar extends StatelessWidget {
                 tooltip: 'Search',
               ),
             ],
+          ),
+          _TopTabs(
+            tabs: _tabs,
+            activeIndex: _activeTab,
+            onTap: (index) => setState(() => _activeTab = index),
+            onEditTabs: _openTabEditor,
+            onEvents: () => context.pushNamed(AppRouteName.events),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              children: [
+                for (var i = 0; i < articleRows.length; i++)
+                  _ArticleListItem(
+                    story: articleRows[i],
+                    showImage: i % 2 == 0,
+                    onTap: () => _openArticle(articleRows[i].slug),
+                  ),
+                const SizedBox(height: 14),
+                const _SectionHeader(
+                  title: 'Local voices across the continent',
+                  subtitle: 'European people like you',
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 194,
+                  child: ScrollConfiguration(
+                    behavior: const _HorizontalDragScrollBehavior(),
+                    child: ListView.separated(
+                      controller: _creatorsController,
+                      scrollDirection: Axis.horizontal,
+                      itemCount: creators.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 12),
+                      itemBuilder: (context, index) => _CreatorCard(
+                        title: creators[index].title,
+                        name: creators[index].name,
+                        location: creators[index].location,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const _SectionHeader(
+                  title: 'Collect your daily words',
+                  subtitle: 'Build your streak from stories',
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: const [
+                    Expanded(
+                      child: _WordBubble(
+                        word: 'civic',
+                        languageCode: 'EN',
+                        flagEmoji: '🇬🇧',
+                        leftUntilGolden: 3,
+                        progress: 0.62,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: _WordBubble(
+                        word: 'mandate',
+                        languageCode: 'DE',
+                        flagEmoji: '🇩🇪',
+                        leftUntilGolden: 2,
+                        progress: 0.74,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _SectionHeader(
+                  title: 'Events in $eventsCity',
+                  subtitle: 'Local and Europe-wide meetups',
+                ),
+                const SizedBox(height: 12),
+                if (visibleEvents.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.surfaceCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: palette.border),
+                    ),
+                    child: Text(
+                      'No upcoming events available right now.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 236,
+                    child: ScrollConfiguration(
+                      behavior: const _HorizontalDragScrollBehavior(),
+                      child: ListView.separated(
+                        controller: _eventsController,
+                        scrollDirection: Axis.horizontal,
+                        itemCount: visibleEvents.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 12),
+                        itemBuilder: (context, index) =>
+                            _EventBubbleCard(event: visibleEvents[index]),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -220,12 +411,14 @@ class _TopTabs extends StatelessWidget {
     required this.tabs,
     required this.activeIndex,
     required this.onTap,
+    required this.onEditTabs,
     required this.onEvents,
   });
 
   final List<String> tabs;
   final int activeIndex;
   final ValueChanged<int> onTap;
+  final VoidCallback onEditTabs;
   final VoidCallback onEvents;
 
   @override
@@ -249,8 +442,11 @@ class _TopTabs extends StatelessWidget {
                     children: [
                       Text(
                         tabs[index],
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: isActive ? Theme.of(context).colorScheme.onSurface : palette.muted,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: isActive
+                                  ? Theme.of(context).colorScheme.onSurface
+                                  : palette.muted,
                             ),
                       ),
                       const SizedBox(height: 8),
@@ -258,7 +454,9 @@ class _TopTabs extends StatelessWidget {
                         duration: const Duration(milliseconds: 200),
                         height: 2,
                         width: 40,
-                        color: isActive ? Theme.of(context).colorScheme.onSurface : Colors.transparent,
+                        color: isActive
+                            ? Theme.of(context).colorScheme.onSurface
+                            : Colors.transparent,
                       ),
                     ],
                   ),
@@ -267,6 +465,11 @@ class _TopTabs extends StatelessWidget {
               separatorBuilder: (context, index) => const SizedBox(width: 18),
               itemCount: tabs.length,
             ),
+          ),
+          IconButton(
+            onPressed: onEditTabs,
+            icon: const Icon(Icons.add),
+            tooltip: 'Edit tabs',
           ),
           GestureDetector(
             onTap: onEvents,
@@ -278,16 +481,12 @@ class _TopTabs extends StatelessWidget {
                   Text(
                     'Events',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: palette.eventsChip,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: palette.eventsChip,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    height: 2,
-                    width: 44,
-                    color: palette.eventsChip,
-                  ),
+                  Container(height: 2, width: 44, color: palette.eventsChip),
                 ],
               ),
             ),
@@ -298,139 +497,139 @@ class _TopTabs extends StatelessWidget {
   }
 }
 
-class _HeroStoryCard extends StatelessWidget {
-  const _HeroStoryCard({
-    required this.title,
-    required this.date,
-    required this.byline,
-    required this.imageAsset,
+class _ArticleListItem extends StatelessWidget {
+  const _ArticleListItem({
+    required this.story,
+    required this.showImage,
     required this.onTap,
   });
 
-  final String title;
-  final String date;
-  final String byline;
-  final String imageAsset;
+  final ArticleSummary story;
+  final bool showImage;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    final titleColor = Theme.of(context).colorScheme.onSurface;
+    final flags = _flagsFromCountryCode(story.countryCode);
 
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: palette.surfaceAlt,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Column(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    byline.toUpperCase(),
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: palette.muted,
-                          letterSpacing: 1.1,
-                          fontSize: 11,
-                        ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (showImage) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/images/placeholder.jpg',
+                      width: 110,
+                      height: 86,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          height: 1.2,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    date,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: palette.muted,
-                          letterSpacing: 1.2,
-                        ),
-                  ),
+                  const SizedBox(width: 12),
                 ],
-              ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            story.topic,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: titleColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                          for (final flag in flags)
+                            Text(
+                              flag,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: titleColor),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        story.title,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.headlineSmall?.copyWith(height: 1.12),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        story.publishedAtLabel,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                imageAsset,
-                height: 120,
-                width: 90,
-                fit: BoxFit.cover,
-              ),
-            ),
+            const SizedBox(height: 14),
+            Divider(color: palette.border, height: 1),
           ],
         ),
       ),
     );
   }
-}
 
-class _StoryRow extends StatelessWidget {
-  const _StoryRow({required this.title, required this.date, required this.onTap});
+  List<String> _flagsFromCountryCode(String countryCode) {
+    final codeList = countryCode
+        .split(',')
+        .map((code) => code.trim().toUpperCase())
+        .where((code) => code.isNotEmpty)
+        .take(3);
+    return codeList.map(_flagForCode).where((flag) => flag.isNotEmpty).toList();
+  }
 
-  final String title;
-  final String date;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<NeuwsPalette>()!;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: palette.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: palette.border),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          height: 1.2,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    date,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: palette.muted,
-                          letterSpacing: 1.1,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              height: 70,
-              width: 70,
-              decoration: BoxDecoration(
-                color: palette.imagePlaceholder,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.image, color: palette.muted),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _flagForCode(String code) {
+    switch (code) {
+      case 'AT':
+        return '🇦🇹';
+      case 'DE':
+        return '🇩🇪';
+      case 'FR':
+        return '🇫🇷';
+      case 'PT':
+        return '🇵🇹';
+      case 'SE':
+        return '🇸🇪';
+      case 'DK':
+        return '🇩🇰';
+      case 'NO':
+        return '🇳🇴';
+      case 'LV':
+        return '🇱🇻';
+      case 'LT':
+        return '🇱🇹';
+      case 'EE':
+        return '🇪🇪';
+      case 'PL':
+        return '🇵🇱';
+      case 'GR':
+        return '🇬🇷';
+      case 'RO':
+        return '🇷🇴';
+      case 'BE':
+        return '🇧🇪';
+      case 'FI':
+        return '🇫🇮';
+      default:
+        return '';
+    }
   }
 }
 
@@ -444,92 +643,42 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: palette.muted,
-                    ),
-              ),
-            ],
-          ),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: palette.muted),
         ),
-        Icon(Icons.arrow_forward_ios, size: 16, color: palette.muted),
       ],
     );
   }
 }
 
 class _CreatorCard extends StatelessWidget {
-  const _CreatorCard({required this.title, required this.author});
+  const _CreatorCard({
+    required this.title,
+    required this.name,
+    required this.location,
+  });
 
   final String title;
-  final String author;
+  final String name;
+  final String location;
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
 
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(16),
+      width: 274,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: palette.surfaceElevated,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundImage: const AssetImage('assets/images/placeholder-user.jpg'),
-            backgroundColor: palette.imagePlaceholder,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.2),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const Spacer(),
-          Text(
-            author,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: palette.muted,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniGameCard extends StatelessWidget {
-  const _MiniGameCard({required this.title, required this.tag});
-
-  final String title;
-  final String tag;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<NeuwsPalette>()!;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: palette.surfaceCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: palette.border),
       ),
@@ -537,16 +686,50 @@ class _MiniGameCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            tag.toUpperCase(),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: palette.muted,
-                  letterSpacing: 1.2,
-                ),
-          ),
-          const SizedBox(height: 10),
-          Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.1),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(height: 1.2, fontSize: 23),
+            maxLines: 3,
+            overflow: TextOverflow.visible,
+          ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundImage: const AssetImage(
+                  'assets/images/placeholder-user.jpg',
+                ),
+                backgroundColor: palette.imagePlaceholder,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      location,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -554,15 +737,19 @@ class _MiniGameCard extends StatelessWidget {
   }
 }
 
-class _LearningCard extends StatelessWidget {
-  const _LearningCard({
-    required this.title,
-    required this.subtitle,
+class _WordBubble extends StatelessWidget {
+  const _WordBubble({
+    required this.word,
+    required this.languageCode,
+    required this.flagEmoji,
+    required this.leftUntilGolden,
     required this.progress,
   });
 
-  final String title;
-  final String subtitle;
+  final String word;
+  final String languageCode;
+  final String flagEmoji;
+  final int leftUntilGolden;
   final double progress;
 
   @override
@@ -570,38 +757,144 @@ class _LearningCard extends StatelessWidget {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      height: 126,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: palette.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
+        color: palette.surfaceCard,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.2),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: palette.muted,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$word means ____',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+              ),
+              Text(flagEmoji),
+              const SizedBox(width: 4),
+              Text(
+                languageCode,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: palette.muted),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
+          const Spacer(),
+          Text(
+            '$leftUntilGolden left until golden',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: palette.muted,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 6,
               backgroundColor: palette.progressBg,
-              valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+              valueColor: AlwaysStoppedAnimation(
+                Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _EventBubbleCard extends StatelessWidget {
+  const _EventBubbleCard({required this.event});
+
+  final EventSummary event;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+
+    return InkWell(
+      onTap: () {
+        context.pushNamed(
+          AppRouteName.eventDetail,
+          pathParameters: {'eventId': event.id},
+        );
+      },
+      child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: palette.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: palette.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+              child: Image.asset(
+                event.imageAsset,
+                height: 120,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.tag,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      event.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const Spacer(),
+                    Text(
+                      event.dateLabel,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HorizontalDragScrollBehavior extends MaterialScrollBehavior {
+  const _HorizontalDragScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+  };
 }

@@ -1,0 +1,248 @@
+NEUWS MOBILE DEV LOG
+Date: February 4, 2026
+Session Focus: MVP structure completion + performance/smoothness architecture pass
+
+==================================================
+1) Session Goals
+==================================================
+- Keep Home and Article UI/UX untouched.
+- Keep bottom navigation locked to 5 tabs.
+- Build missing app pages/flows so the MVP is actually navigable.
+- Add architecture that makes later Supabase integration straightforward.
+- Improve perceived speed and smoothness using cache-first data loading.
+
+==================================================
+2) Constraints We Explicitly Followed
+==================================================
+- Did not redesign Home UX layout or visual style.
+- Did not redesign Article UX layout or visual style.
+- Did not add a Discover tab/page.
+- Treated country content as topic/country feed variants.
+- Preserved 5-tab bottom nav:
+  Home, Messages, Learn, Games, You.
+
+==================================================
+3) What Was Built (Structure and Features)
+==================================================
+3.1 Navigation and route structure
+- Added centralized route names/paths and app router shell.
+- Implemented nested/tab-safe routing so each tab keeps stack context.
+- Added secondary routes for:
+  Saved, Events, Event Detail, Topic Feed, Learn Track, Lesson,
+  Quiz Categories, Quiz Play, Settings, Pricing, Creator Studio, Write.
+
+Why:
+- Single route registry reduces navigation bugs and simplifies scaling.
+- Tab branch stacks are cleaner than ad-hoc push flows for a growing app.
+
+3.2 Missing screens connected
+- Messages: structured inbox placeholder.
+- Learn: track list with progress + open track.
+- Learn Track: module list with lock/completed/current style.
+- Lesson: scaffolded question flow and completion summary.
+- Games: added category and topic feed entry points.
+- Quiz Categories + Quiz Play scaffolds.
+- Events list now opens Event Detail.
+- You tab expanded with Settings/Pricing/Creator Studio/Saved shortcuts.
+- Added Settings, Pricing, Creator Studio, and Write pages.
+- Added Topic Feed page (country/topic style feed).
+
+Why:
+- The app now feels like one connected product instead of isolated stubs.
+- This gives us real navigation and UX testing surface before backend work.
+
+3.3 Backend-ready domain interfaces
+- Added model layer for typed app data contracts.
+- Added repository interfaces:
+  Article, Learn, Games, Events, Profile, Creator, Settings.
+- Added mock implementations for active MVP data.
+- Added Supabase repository stubs (same contracts, not wired yet).
+- Added provider wiring to swap mock/supabase sources via dependency injection.
+
+Why:
+- Decouples UI from backend implementation details.
+- Lets us flip data source with minimal UI rewrite later.
+
+==================================================
+4) Performance/Smoothness Upgrade (Alternative 1)
+==================================================
+4.1 Replaced screen-level FutureBuilder fetching
+- Migrated key screens to Riverpod async providers/notifiers.
+- Removed repeated direct fetch calls from widget build trees.
+
+Why:
+- Reduces accidental re-fetch on rebuild.
+- Stabilizes async state handling across screens.
+
+4.2 Added cache-first data layer
+- Added in-memory + SharedPreferences-backed cache service.
+- Added model serialization for cached payloads.
+- Implemented stale-while-revalidate behavior:
+  show cached data quickly, refresh in background when stale.
+
+Why:
+- Improves first paint and navigation responsiveness.
+- Keeps data reasonably fresh without blocking UI.
+
+4.3 Added startup prefetch
+- On shell startup, prefetches likely-needed data:
+  tracks, events, profile, quiz categories, and first likely details.
+- Added provider switch so prefetch can be disabled in tests.
+
+Why:
+- Improves perceived speed when users move to adjacent flows.
+- Avoids heavy "load only when tapped" feel.
+
+4.4 Home and Article data flow alignment (follow-up fix)
+- Home now reads top stories/tracks through provider/cache data sources.
+- Added article slug route (`/article/:slug`) and entry wrapper page for data loading.
+- Existing `ArticlePage` UI is reused as-is; only data-loading path changed.
+- Home and topic-feed article taps now use the same slug-based article load path.
+- Added article detail caching/serialization and prefetch for top-story detail.
+
+Why:
+- Home + Article now follow the same backend-ready architecture as the rest of the app.
+- Improves consistency for future Supabase integration.
+- Keeps UI locked while moving data logic into shared repository/provider/cache layers.
+
+==================================================
+5) Docs and Planning Updated
+==================================================
+- Updated Outline_Plan.txt with detailed progress/checklist and route map.
+- Added docs/backend_outline.md:
+  repository method mapping, Supabase table mapping, ownership notes,
+  and migration path from mock to live backend.
+
+Why:
+- Keeps implementation and backend handoff aligned.
+- Reduces future integration ambiguity.
+
+==================================================
+6) Validation Completed
+==================================================
+- flutter analyze: PASS
+- flutter test: PASS
+- Route and flow smoke tests include:
+  Home -> Saved/Event
+  Home -> Article (slug route + provider/cache fetch)
+  Learn -> Track -> Lesson
+  You -> Settings/Pricing/Studio
+  Games -> Quiz flow
+
+==================================================
+7) What Still Needs To Be Done
+==================================================
+1. Supabase runtime wiring
+- Replace mock repositories with real query implementations.
+- Add auth-aware user-scoped data access.
+
+2. Realtime and delta updates
+- Followers, DMs, unread counts, engagement counters.
+- Controlled channel subscriptions and reconnection logic.
+
+3. Cache policy tuning
+- Different TTLs by feature (profile/events/messages/tracks/etc).
+- Invalidation strategy after writes (bookmark/RSVP/comment actions).
+
+4. Persistent settings and preferences
+- Save language/theme/notification preferences to backend.
+
+5. Write path implementation
+- Real draft save/publish flows.
+- Creator analytics data source.
+
+6. Observability and perf measurement
+- Add timing/log hooks for provider fetch/cached-hit rates.
+- Track p95 page load for key routes.
+
+7. Hardening
+- More widget/integration tests for edge and offline scenarios.
+- Error UX fallback polish for backend failures.
+
+==================================================
+8) Future Dev Thoughts
+==================================================
+- Current structure is a strong MVP foundation.
+- Biggest next win is Supabase implementation with disciplined cache invalidation.
+- Keep full article/media loading selective; do not over-prefetch heavy content.
+- For instant feel at scale:
+  cached shell + targeted prefetch + lightweight realtime deltas is the right strategy.
+- Avoid adding new top-level nav complexity until core loops (read, learn, game, creator) are stable with live backend data.
+
+==================================================
+9) UI/UX Design Phase Addendum (Later February 4, 2026)
+==================================================
+Session Focus:
+- Shifted from "locked Home/Article UX" to active UI/UX redesign while keeping bottom nav at 5 tabs.
+
+9.1 Home redesign pass
+- Reworked Home feed from card-heavy layout to cleaner article-list style (divider-separated rows).
+- Added topic + multi-flag metadata presentation for articles (supports up to 3 flags from country code list).
+- Removed read-time from article rows.
+- Rebuilt "Local voices" section:
+  - new copy: "Local voices across the continent" / "European people like you"
+  - horizontal lazy-loading carousel behavior (loads more on right-scroll)
+  - author layout improved (larger avatar, name above location)
+- Replaced "Continue learning" block with "Collect your daily words":
+  - two equal-sized practice bubbles
+  - no direct answer shown ("word means ____")
+  - per-bubble language flag + progress + "X left until golden"
+- Replaced "Perks & Events" home block with dedicated "Events in {city}" horizontal event rail.
+- Fixed repeated RenderFlex overflow issues in event tiles and rail sizing.
+- Added editable top tabs (+ button):
+  - add/remove/reset tabs
+  - persisted in SharedPreferences.
+
+9.2 Messages redesign pass
+- Rebuilt Messages page to DM-style UI inspired by Instagram:
+  - top search bar for users/messages
+  - removed "Community inbox" subtitle
+  - removed per-thread message icon
+  - clean list rows (no boxed thread cards)
+  - larger avatars + better unread highlighting.
+- Added top-right "New message" action opening searchable contacts sheet (followers/following style list).
+
+9.3 Global drawer/side panel and navigation polish
+- Added app-wide left slide drawer (edge swipe + top-left more button trigger).
+- Drawer menu order:
+  1) Premium
+  2) Explore
+  3) Perks
+  4) Events
+  5) Creative Studio
+  6) Settings
+- Added drawer profile header at top (avatar + name + location), tap opens You tab.
+- Moved Dark Mode toggle from You page into drawer bottom-left area with moon icon.
+- Matched drawer background color to active theme scaffold color.
+- Adjusted drawer width and spacing for readability.
+
+9.4 Renames and IA updates
+- Bottom nav labels updated:
+  - Learn -> Words
+  - Games -> Play
+- Play page headline updated to "Puzzles & Quizzes".
+- "Pricing" naming shifted to "Premium" in UI.
+- "Creator Studio" naming shifted to "Creative Studio" in UI.
+- Added Explore and Perks pages/routes for drawer navigation.
+
+9.5 You page simplification
+- Removed shortcut action list from You page (Settings/Perks/Premium/Studio moved to drawer).
+- Removed saved-stories shortcut area from You page.
+- Kept You page focused on profile + core stat cards.
+
+9.6 Top bar consistency
+- Unified Home, Messages, Words, and Play title bar structure:
+  - same font, size, and alignment pattern
+  - top-left drawer trigger present on all four pages.
+- Home title retained as "neuws" per latest decision.
+
+9.7 Validation status for this UI phase
+- flutter analyze: PASS (after each major iteration)
+- flutter test: PASS (tests updated where nav interaction changed, especially drawer flows)
+
+==================================================
+10) Updated Current Constraint Snapshot
+==================================================
+- Bottom navigation remains locked to 5 tabs.
+- Home and Article are no longer treated as UX-locked for this phase.
+- Route architecture + repository/provider/cache architecture remain intact and backend-ready.
