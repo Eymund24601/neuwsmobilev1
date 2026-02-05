@@ -1,8 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/article_alignment_pack.dart';
+import '../../models/article_bundle.dart';
 import '../../models/article_detail.dart';
+import '../../models/article_localization.dart';
 import '../../models/article_summary.dart';
 import '../../models/topic_feed.dart';
+import '../../models/vocab_models.dart';
 import '../article_repository.dart';
 import 'supabase_mapping_utils.dart';
 
@@ -49,6 +53,205 @@ class SupabaseArticleRepository implements ArticleRepository {
     }
 
     return _mapDetail(row);
+  }
+
+  @override
+  Future<ArticleBundle?> getArticleBundleBySlug(
+    String slug,
+    String topLang,
+    String bottomLang,
+    String uiLang,
+  ) async {
+    final articleRow = await _client
+        .from('articles')
+        .select('*')
+        .eq('slug', slug)
+        .eq('is_published', true)
+        .maybeSingle();
+
+    if (articleRow == null) {
+      return null;
+    }
+
+    final articleId = SupabaseMappingUtils.stringValue(
+      articleRow,
+      const ['id'],
+      fallback: slug,
+    );
+    final canonicalLang = SupabaseMappingUtils.stringValue(
+      articleRow,
+      const ['canonical_lang', 'canonical_language', 'language_top'],
+      fallback: topLang,
+    );
+    final canonicalLocalizationId = SupabaseMappingUtils.stringValue(
+      articleRow,
+      const ['canonical_localization_id'],
+    );
+
+    final localizationRows = await _client
+        .from('article_localizations')
+        .select('''
+          id,
+          article_id,
+          lang,
+          title,
+          excerpt,
+          body,
+          content_hash,
+          version,
+          created_at
+        ''')
+        .eq('article_id', articleId)
+        .inFilter('lang', [canonicalLang, topLang, bottomLang]);
+
+    final localizations = localizationRows
+        .map<ArticleLocalization>(
+          (dynamic row) => _mapLocalization(row as Map<String, dynamic>),
+        )
+        .toList();
+
+    if (localizations.isEmpty) {
+      final fallbackTopLang = SupabaseMappingUtils.stringValue(
+        articleRow,
+        const ['language_top'],
+        fallback: canonicalLang,
+      );
+      final fallbackBottomLang = SupabaseMappingUtils.stringValue(
+        articleRow,
+        const ['language_bottom'],
+        fallback: bottomLang,
+      );
+      localizations.addAll([
+        _fallbackLocalization(
+          articleRow,
+          articleId: articleId,
+          lang: fallbackTopLang,
+          bodyKey: 'body_top',
+          fallbackBody: 'content',
+          suffix: 'top',
+        ),
+        _fallbackLocalization(
+          articleRow,
+          articleId: articleId,
+          lang: fallbackBottomLang,
+          bodyKey: 'body_bottom',
+          fallbackBody: 'content',
+          suffix: 'bottom',
+        ),
+      ]);
+    }
+
+    final ArticleLocalization canonicalLocalization = canonicalLocalizationId.isNotEmpty
+        ? localizations.firstWhere(
+            (item) => item.id == canonicalLocalizationId,
+            orElse: () => localizations.first,
+          )
+        : localizations.firstWhere(
+            (item) => item.lang == canonicalLang,
+            orElse: () => localizations.first,
+          );
+
+    final topLocalization = _pickLocalization(
+      localizations,
+      lang: topLang,
+      fallback: canonicalLocalization,
+    );
+    final bottomLocalization = _pickLocalization(
+      localizations,
+      lang: bottomLang,
+      fallback: canonicalLocalization,
+    );
+
+    final alignmentRows = await _client
+        .from('article_alignments')
+        .select('''
+          id,
+          article_id,
+          from_localization_id,
+          to_localization_id,
+          alignment_json,
+          algo_version,
+          quality_score
+        ''')
+        .eq('article_id', articleId)
+        .eq('from_localization_id', canonicalLocalization.id)
+        .inFilter('to_localization_id', [
+      topLocalization.id,
+      bottomLocalization.id,
+    ]);
+
+    ArticleAlignmentPack? alignmentToTop;
+    ArticleAlignmentPack? alignmentToBottom;
+    for (final dynamic row in alignmentRows) {
+      final pack = _mapAlignment(row as Map<String, dynamic>);
+      if (pack.toLocalizationId == topLocalization.id) {
+        alignmentToTop = pack;
+      }
+      if (pack.toLocalizationId == bottomLocalization.id) {
+        alignmentToBottom = pack;
+      }
+    }
+
+    final focusRows = await _client
+        .from('article_focus_vocab')
+        .select('''
+          article_id,
+          rank,
+          vocab_items:vocab_item_id(
+            id,
+            canonical_lang,
+            canonical_lemma,
+            pos,
+            difficulty,
+            created_at,
+            vocab_entries(
+              id,
+              vocab_item_id,
+              lang,
+              primary_definition,
+              usage_notes,
+              examples,
+              tags,
+              updated_at,
+              updated_by,
+              source
+            ),
+            vocab_forms(
+              id,
+              vocab_item_id,
+              lang,
+              lemma,
+              surface,
+              notes
+            )
+          )
+        ''')
+        .eq('article_id', articleId)
+        .order('rank', ascending: true);
+
+    final focusItems = focusRows
+        .map<FocusVocabItem>(
+          (dynamic row) => _mapFocusItem(
+            row as Map<String, dynamic>,
+            uiLang: uiLang,
+            topLang: topLang,
+            bottomLang: bottomLang,
+          ),
+        )
+        .where((item) => item.item.id.isNotEmpty)
+        .toList();
+
+    return ArticleBundle(
+      articleId: articleId,
+      slug: slug,
+      canonicalLang: canonicalLang,
+      canonicalLocalization: canonicalLocalization,
+      topLocalization: topLocalization,
+      bottomLocalization: bottomLocalization,
+      alignmentToTop: alignmentToTop,
+      alignmentToBottom: alignmentToBottom,
+      focusVocab: ArticleFocusVocab(articleId: articleId, items: focusItems),
+    );
   }
 
   @override
@@ -222,6 +425,208 @@ class SupabaseArticleRepository implements ArticleRepository {
         'body_bottom',
         'content',
       ], fallback: ''),
+    );
+  }
+
+  ArticleLocalization _mapLocalization(Map<String, dynamic> row) {
+    return ArticleLocalization(
+      id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
+      articleId:
+          SupabaseMappingUtils.stringValue(row, const ['article_id'], fallback: ''),
+      lang: SupabaseMappingUtils.stringValue(row, const ['lang'], fallback: ''),
+      title: SupabaseMappingUtils.stringValue(row, const ['title'], fallback: ''),
+      excerpt: SupabaseMappingUtils.stringValue(row, const ['excerpt'], fallback: ''),
+      body: SupabaseMappingUtils.stringValue(row, const ['body'], fallback: ''),
+      contentHash:
+          SupabaseMappingUtils.stringValue(row, const ['content_hash'], fallback: ''),
+      version: SupabaseMappingUtils.intValue(row, const ['version'], fallback: 1),
+      createdAt: SupabaseMappingUtils.dateTimeValue(row, const ['created_at']),
+    );
+  }
+
+  ArticleLocalization _fallbackLocalization(
+    Map<String, dynamic> articleRow, {
+    required String articleId,
+    required String lang,
+    required String bodyKey,
+    required String fallbackBody,
+    required String suffix,
+  }) {
+    final body = SupabaseMappingUtils.stringValue(
+      articleRow,
+      [bodyKey, fallbackBody],
+      fallback: '',
+    );
+    return ArticleLocalization(
+      id: '$articleId-$suffix',
+      articleId: articleId,
+      lang: lang,
+      title: SupabaseMappingUtils.stringValue(articleRow, const ['title'], fallback: ''),
+      excerpt:
+          SupabaseMappingUtils.stringValue(articleRow, const ['excerpt'], fallback: ''),
+      body: body,
+      contentHash: '',
+      version: 1,
+      createdAt: SupabaseMappingUtils.dateTimeValue(articleRow, const ['created_at']),
+    );
+  }
+
+  ArticleAlignmentPack _mapAlignment(Map<String, dynamic> row) {
+    return ArticleAlignmentPack(
+      id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
+      articleId:
+          SupabaseMappingUtils.stringValue(row, const ['article_id'], fallback: ''),
+      fromLocalizationId: SupabaseMappingUtils.stringValue(
+        row,
+        const ['from_localization_id'],
+        fallback: '',
+      ),
+      toLocalizationId: SupabaseMappingUtils.stringValue(
+        row,
+        const ['to_localization_id'],
+        fallback: '',
+      ),
+      alignmentJson: row['alignment_json'],
+      algoVersion:
+          SupabaseMappingUtils.stringValue(row, const ['algo_version'], fallback: ''),
+      qualityScore: (row['quality_score'] as num?)?.toDouble(),
+    );
+  }
+
+  ArticleLocalization _pickLocalization(
+    List<ArticleLocalization> localizations, {
+    required String lang,
+    required ArticleLocalization fallback,
+  }) {
+    return localizations.firstWhere(
+      (item) => item.lang == lang,
+      orElse: () => fallback,
+    );
+  }
+
+  FocusVocabItem _mapFocusItem(
+    Map<String, dynamic> row, {
+    required String uiLang,
+    required String topLang,
+    required String bottomLang,
+  }) {
+    final vocabMap = row['vocab_items'];
+    if (vocabMap is! Map<String, dynamic>) {
+      return FocusVocabItem(
+        rank: SupabaseMappingUtils.intValue(row, const ['rank'], fallback: 1),
+        item: const VocabItem(
+          id: '',
+          canonicalLang: '',
+          canonicalLemma: '',
+          pos: '',
+          difficulty: '',
+          createdAt: null,
+        ),
+        entry: null,
+        forms: const [],
+      );
+    }
+
+    final vocabItem = VocabItem(
+      id: SupabaseMappingUtils.stringValue(vocabMap, const ['id'], fallback: ''),
+      canonicalLang: SupabaseMappingUtils.stringValue(
+        vocabMap,
+        const ['canonical_lang'],
+        fallback: '',
+      ),
+      canonicalLemma: SupabaseMappingUtils.stringValue(
+        vocabMap,
+        const ['canonical_lemma'],
+        fallback: '',
+      ),
+      pos: SupabaseMappingUtils.stringValue(vocabMap, const ['pos'], fallback: ''),
+      difficulty:
+          SupabaseMappingUtils.stringValue(vocabMap, const ['difficulty'], fallback: ''),
+      createdAt: SupabaseMappingUtils.dateTimeValue(vocabMap, const ['created_at']),
+    );
+
+    final entry = _pickEntryForLang(vocabMap['vocab_entries'], uiLang);
+    final forms = _pickFormsForLangs(
+      vocabMap['vocab_forms'],
+      langs: [topLang, bottomLang],
+    );
+
+    return FocusVocabItem(
+      rank: SupabaseMappingUtils.intValue(row, const ['rank'], fallback: 1),
+      item: vocabItem,
+      entry: entry,
+      forms: forms,
+    );
+  }
+
+  VocabEntry? _pickEntryForLang(dynamic rawEntries, String uiLang) {
+    if (rawEntries is! List) {
+      return null;
+    }
+    for (final dynamic entryRow in rawEntries) {
+      final entryMap = entryRow as Map<String, dynamic>;
+      if (SupabaseMappingUtils.stringValue(entryMap, const ['lang']) == uiLang) {
+        return _mapVocabEntry(entryMap);
+      }
+    }
+    if (rawEntries.isNotEmpty) {
+      return _mapVocabEntry(rawEntries.first as Map<String, dynamic>);
+    }
+    return null;
+  }
+
+  List<VocabForm> _pickFormsForLangs(
+    dynamic rawForms, {
+    required List<String> langs,
+  }) {
+    if (rawForms is! List) {
+      return const [];
+    }
+    final forms = rawForms
+        .map((dynamic formRow) => _mapVocabForm(formRow as Map<String, dynamic>))
+        .toList();
+    return forms.where((form) => langs.contains(form.lang)).toList();
+  }
+
+  VocabEntry _mapVocabEntry(Map<String, dynamic> row) {
+    final examples = row['examples'];
+    final tags = row['tags'];
+    return VocabEntry(
+      id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
+      vocabItemId: SupabaseMappingUtils.stringValue(
+        row,
+        const ['vocab_item_id'],
+        fallback: '',
+      ),
+      lang: SupabaseMappingUtils.stringValue(row, const ['lang'], fallback: ''),
+      primaryDefinition: SupabaseMappingUtils.stringValue(
+        row,
+        const ['primary_definition'],
+        fallback: '',
+      ),
+      usageNotes:
+          SupabaseMappingUtils.stringValue(row, const ['usage_notes'], fallback: ''),
+      examples: examples is List ? examples.whereType<String>().toList() : const [],
+      tags: tags is List ? tags.whereType<String>().toList() : const [],
+      updatedAt: SupabaseMappingUtils.dateTimeValue(row, const ['updated_at']),
+      updatedBy:
+          SupabaseMappingUtils.stringValue(row, const ['updated_by'], fallback: ''),
+      source: SupabaseMappingUtils.stringValue(row, const ['source'], fallback: ''),
+    );
+  }
+
+  VocabForm _mapVocabForm(Map<String, dynamic> row) {
+    return VocabForm(
+      id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
+      vocabItemId: SupabaseMappingUtils.stringValue(
+        row,
+        const ['vocab_item_id'],
+        fallback: '',
+      ),
+      lang: SupabaseMappingUtils.stringValue(row, const ['lang'], fallback: ''),
+      lemma: SupabaseMappingUtils.stringValue(row, const ['lemma'], fallback: ''),
+      surface: SupabaseMappingUtils.stringValue(row, const ['surface'], fallback: ''),
+      notes: SupabaseMappingUtils.stringValue(row, const ['notes'], fallback: ''),
     );
   }
 

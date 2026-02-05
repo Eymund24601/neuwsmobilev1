@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/article_bundle.dart';
 import '../models/article_detail.dart';
 import '../models/article_summary.dart';
 import '../models/event_summary.dart';
@@ -129,6 +130,23 @@ class ArticleDetailBySlugNotifier extends FamilyAsyncNotifier<ArticleDetail?, St
     );
     state = AsyncData(fresh);
     return fresh;
+  }
+}
+
+final articleBundleBySlugProvider =
+    AsyncNotifierProviderFamily<ArticleBundleBySlugNotifier, ArticleBundle?, ArticleBundleRequest>(
+  ArticleBundleBySlugNotifier.new,
+);
+
+class ArticleBundleBySlugNotifier extends FamilyAsyncNotifier<ArticleBundle?, ArticleBundleRequest> {
+  @override
+  Future<ArticleBundle?> build(ArticleBundleRequest request) async {
+    return ref.read(articleRepositoryProvider).getArticleBundleBySlug(
+          request.slug,
+          request.topLang,
+          request.bottomLang,
+          request.uiLang,
+        );
   }
 }
 
