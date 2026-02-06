@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../app/app_routes.dart';
+import '../models/community_models.dart';
 import '../models/user_profile.dart';
 import '../providers/cache_providers.dart';
 import '../providers/feature_data_providers.dart';
@@ -59,6 +62,7 @@ class _YouPageState extends ConsumerState<YouPage> {
           ),
         ),
         data: (profile) {
+          final progression = ref.watch(userProgressionProvider).valueOrNull;
           final avatar = _selectedAvatar ?? profile.avatarAsset;
           final wallpaper = _selectedWallpaper ?? profile.wallpaperAsset;
 
@@ -67,6 +71,7 @@ class _YouPageState extends ConsumerState<YouPage> {
             children: [
               _ProfileHeader(
                 profile: profile,
+                progression: progression,
                 avatarAsset: avatar,
                 wallpaperAsset: wallpaper,
                 onPickAvatar: () => _openPicker(
@@ -182,6 +187,7 @@ class _YouPageState extends ConsumerState<YouPage> {
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
     required this.profile,
+    required this.progression,
     required this.avatarAsset,
     required this.wallpaperAsset,
     required this.onPickAvatar,
@@ -189,6 +195,7 @@ class _ProfileHeader extends StatelessWidget {
   });
 
   final UserProfile profile;
+  final UserProgressionSummary? progression;
   final String avatarAsset;
   final String wallpaperAsset;
   final VoidCallback onPickAvatar;
@@ -303,6 +310,26 @@ class _ProfileHeader extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _StatChip(
+                    label: 'XP',
+                    value: '${progression?.totalXp ?? profile.points}',
+                  ),
+                  _StatChip(
+                    label: 'Level',
+                    value: '${progression?.level ?? 1}',
+                  ),
+                  _StatChip(
+                    label: 'Streak',
+                    value:
+                        '${progression?.currentStreakDays ?? profile.streakDays}d',
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -337,6 +364,30 @@ class _ProfileHeader extends StatelessWidget {
       default:
         return '';
     }
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border),
+      ),
+      child: Text(
+        '$label: $value',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
   }
 }
 
@@ -445,38 +496,23 @@ class _TabContent extends StatelessWidget {
   }
 }
 
-class _ArticlesTab extends StatelessWidget {
+class _ArticlesTab extends ConsumerWidget {
   const _ArticlesTab();
 
   @override
-  Widget build(BuildContext context) {
-    final articles = const [
-      (
-        title: 'How Vienna is redesigning local democracy',
-        tag: 'Politics',
-        date: 'FEBRUARY 4, 2026',
-      ),
-      (
-        title: 'A beginner guide to Nordic coalition politics',
-        tag: 'Explainer',
-        date: 'FEBRUARY 2, 2026',
-      ),
-      (
-        title: 'The new community radio wave across Europe',
-        tag: 'Culture',
-        date: 'JANUARY 28, 2026',
-      ),
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final articles = ref.watch(topStoriesProvider).valueOrNull ?? const [];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
       child: Column(
         children: [
-          for (final article in articles)
+          for (final article in articles.take(6))
             _FeedRowItem(
               title: article.title,
-              topic: article.tag,
-              date: article.date,
+              topic: article.topic,
+              date: article.publishedAtLabel,
+              slug: article.slug,
               showImage: articles.indexOf(article).isEven,
             ),
         ],
@@ -485,21 +521,19 @@ class _ArticlesTab extends StatelessWidget {
   }
 }
 
-class _RepostedTab extends StatelessWidget {
+class _RepostedTab extends ConsumerWidget {
   const _RepostedTab();
 
   @override
-  Widget build(BuildContext context) {
-    final reposted = const [
-      (
-        title: 'Why the Baltics are leading digital civic education',
-        source: 'Reposted from Lea Novak',
-      ),
-      (
-        title: 'French local journalism is having a creator moment',
-        source: 'Reposted from Camille Fournier',
-      ),
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reposted =
+        ref.watch(repostedArticlesProvider).valueOrNull ?? const [];
+    if (reposted.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 24, 16, 28),
+        child: Text('No reposted stories yet.'),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
@@ -508,8 +542,9 @@ class _RepostedTab extends StatelessWidget {
           for (final item in reposted)
             _FeedRowItem(
               title: item.title,
-              topic: item.source,
+              topic: item.sourceLabel,
               date: 'Reposted',
+              slug: item.slug,
               showImage: reposted.indexOf(item).isEven,
             ),
         ],
@@ -518,17 +553,14 @@ class _RepostedTab extends StatelessWidget {
   }
 }
 
-class _CollectionsTab extends StatelessWidget {
+class _CollectionsTab extends ConsumerWidget {
   const _CollectionsTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final collections = const [
-      ('Elections Toolkit', '12 saved articles'),
-      ('Nordic Long Reads', '8 saved articles'),
-      ('Creators to Watch', '15 saved articles'),
-    ];
+    final collections =
+        ref.watch(userCollectionsProvider).valueOrNull ?? const [];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
@@ -542,6 +574,13 @@ class _CollectionsTab extends StatelessWidget {
             ).textTheme.bodyMedium?.copyWith(color: palette.muted),
           ),
           const SizedBox(height: 10),
+          if (collections.isEmpty)
+            Text(
+              'No collections yet.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: palette.muted),
+            ),
           for (final collection in collections)
             Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -560,12 +599,12 @@ class _CollectionsTab extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          collection.$1,
+                          collection.name,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          collection.$2,
+                          '${collection.itemCount} saved articles',
                           style: Theme.of(
                             context,
                           ).textTheme.bodySmall?.copyWith(color: palette.muted),
@@ -575,7 +614,7 @@ class _CollectionsTab extends StatelessWidget {
                   ),
                   FilledButton.tonal(
                     onPressed: () {},
-                    child: const Text('Public'),
+                    child: Text(collection.isPublic ? 'Public' : 'Private'),
                   ),
                 ],
               ),
@@ -586,20 +625,13 @@ class _CollectionsTab extends StatelessWidget {
   }
 }
 
-class _FavouriteAuthorsTab extends StatelessWidget {
+class _FavouriteAuthorsTab extends ConsumerWidget {
   const _FavouriteAuthorsTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final authors = const [
-      ('Lea Novak', 'Ljubljana, SI'),
-      ('Lukas Brenner', 'Berlin, DE'),
-      ('Aino Jarvinen', 'Helsinki, FI'),
-      ('Miguel Sousa', 'Porto, PT'),
-      ('Andrei Popescu', 'Bucharest, RO'),
-      ('Nikos Petrou', 'Athens, GR'),
-    ];
+    final authors = ref.watch(messageContactsProvider).valueOrNull ?? const [];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
@@ -613,6 +645,13 @@ class _FavouriteAuthorsTab extends StatelessWidget {
             ).textTheme.bodyMedium?.copyWith(color: palette.muted),
           ),
           const SizedBox(height: 10),
+          if (authors.isEmpty)
+            Text(
+              'No connected authors yet.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: palette.muted),
+            ),
           GridView.builder(
             itemCount: authors.length,
             shrinkWrap: true,
@@ -642,13 +681,13 @@ class _FavouriteAuthorsTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      author.$1,
+                      author.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     Text(
-                      author.$2,
+                      author.relation,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(
@@ -672,12 +711,14 @@ class _FeedRowItem extends StatelessWidget {
     required this.topic,
     required this.date,
     required this.showImage,
+    this.slug = '',
   });
 
   final String title;
   final String topic;
   final String date;
   final bool showImage;
+  final String slug;
 
   @override
   Widget build(BuildContext context) {
@@ -685,7 +726,14 @@ class _FeedRowItem extends StatelessWidget {
     final titleColor = Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
-      onTap: () {},
+      onTap: slug.isEmpty
+          ? null
+          : () {
+              context.pushNamed(
+                AppRouteName.article,
+                pathParameters: {'slug': slug},
+              );
+            },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(

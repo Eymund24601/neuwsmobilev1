@@ -1,60 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/community_models.dart';
+import '../providers/feature_data_providers.dart';
 import '../theme/app_theme.dart';
 
-class PerksPage extends StatelessWidget {
+class PerksPage extends ConsumerWidget {
   const PerksPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final perksAsync = ref.watch(userPerksProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perks')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        children: [
-          _PerkCard(
-            title: 'Nordic Rail 20% Off',
-            subtitle: 'Travel',
-            code: 'NEUWS20',
-            palette: palette,
+      body: perksAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text('Could not load perks: $error'),
           ),
-          const SizedBox(height: 12),
-          _PerkCard(
-            title: 'Berlin Coffee Pass',
-            subtitle: 'Food',
-            code: 'EUROPEBREW',
-            palette: palette,
-          ),
-          const SizedBox(height: 12),
-          _PerkCard(
-            title: 'Premium Creator Tools',
-            subtitle: 'SaaS',
-            code: 'CREATOR30',
-            palette: palette,
-          ),
-        ],
+        ),
+        data: (perks) {
+          if (perks.isEmpty) {
+            return const Center(child: Text('No perks unlocked yet.'));
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            itemCount: perks.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              return _PerkCard(item: perks[index]);
+            },
+          );
+        },
       ),
     );
   }
 }
 
 class _PerkCard extends StatelessWidget {
-  const _PerkCard({
-    required this.title,
-    required this.subtitle,
-    required this.code,
-    required this.palette,
-  });
+  const _PerkCard({required this.item});
 
-  final String title;
-  final String subtitle;
-  final String code;
-  final NeuwsPalette palette;
+  final UserPerkSummary item;
 
   @override
   Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -66,15 +60,25 @@ class _PerkCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            subtitle,
+            item.category,
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: palette.muted),
           ),
           const SizedBox(height: 6),
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          Text(item.title, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('Code: $code', style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            'Code: ${item.code}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Status: ${item.status}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: palette.muted),
+          ),
         ],
       ),
     );

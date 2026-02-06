@@ -58,7 +58,7 @@ class SupabaseLearnRepository implements LearnRepository {
   Future<List<TrackSummary>> getTracks() async {
     final rows = await _client
         .from('learning_tracks')
-        .select('id,title,description,total_modules,completed_modules')
+        .select('*')
         .eq('is_published', true)
         .order('position', ascending: true);
 
@@ -104,7 +104,7 @@ class SupabaseLearnRepository implements LearnRepository {
   Future<TrackSummary?> getTrackById(String trackId) async {
     final row = await _client
         .from('learning_tracks')
-        .select('id,title,description,total_modules,completed_modules')
+        .select('*')
         .eq('id', trackId)
         .eq('is_published', true)
         .maybeSingle();
@@ -117,6 +117,9 @@ class SupabaseLearnRepository implements LearnRepository {
   TrackSummary _mapTrack(Map<String, dynamic> row) {
     final totalModules = SupabaseMappingUtils.intValue(row, const [
       'total_modules',
+      'modules_count',
+      'module_count',
+      'lessons_count',
     ], fallback: 0);
     return TrackSummary(
       id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
@@ -128,6 +131,7 @@ class SupabaseLearnRepository implements LearnRepository {
       ], fallback: ''),
       completedModules: SupabaseMappingUtils.intValue(row, const [
         'completed_modules',
+        'completed_count',
       ], fallback: 0),
       totalModules: totalModules,
     );

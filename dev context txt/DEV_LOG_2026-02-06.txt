@@ -1,0 +1,122 @@
+NEUWS MOBILE DEV LOG
+Date: February 6, 2026
+Session Focus: Backend architecture implementation + legacy-safe migration hardening + Supabase runtime onboarding
+
+==================================================
+1) Goals
+==================================================
+- Implement scalable backend structure for:
+  - polyglot article localizations + alignments
+  - vocab collection/progress
+  - social/community domains
+  - games/quizzes
+  - progression/xp/streaks/achievements/perks/events
+  - retention analytics/counters
+- Keep mock and Supabase repo flows compiling.
+- Add durable documentation so future agents can continue without context loss.
+- Stabilize migration rollout for projects with legacy Supabase schema drift.
+
+==================================================
+2) Key Backend Decisions Locked
+==================================================
+- Alignment model: canonical routing (`source -> canonical -> target`) as base (O(N), not O(N^2)).
+- Offset encoding: UTF-16 code-unit offsets for all text spans/alignment offsets.
+- Vocab model: canonical lemma/POS in `vocab_items`; language forms in `vocab_forms`; language cards in `vocab_entries`.
+- XP model: append-only `xp_ledger` + derived aggregate in `user_progression`.
+- Streak model: event-driven (`streak_events`) with DB trigger updates.
+
+==================================================
+3) Migrations Added/Updated
+==================================================
+- `20260206164000_polyglot_core.sql`
+  - article localizations, alignments, vocab, publishing jobs.
+- `20260206170000_social_content_analytics.sql`
+  - media, DMs, games, quizzes, follows/settings/saves/collections/reposts,
+    notifications/safety, engagement events + counters.
+- `20260206173000_progression_legacy_bootstrap.sql`
+  - compatibility bootstrap for older progression/event table shapes.
+- `20260206174000_progression_rewards_events.sql`
+  - progression levels, xp ledger, streaks, achievements, perks, events + triggers.
+- `20260206182000_games_sudoku_eurodle_seed.sql`
+  - Sudoku skill_point support and seed rounds, Eurodle seed.
+- `20260206190000_profile_compatibility_patch.sql`
+  - additive profile/events compatibility columns for older projects.
+- `20260206201000_quiz_legacy_compat_patch.sql`
+  - quiz legacy compatibility (`quiz_id` -> `quiz_set_id`) and index safety.
+
+==================================================
+4) App Layer Changes Completed
+==================================================
+- Added/extended models and repositories for:
+  - article bundle + vocab payload
+  - community domains
+  - game rounds (Sudoku + Eurodle)
+- Wired providers and screens to backend-ready repos.
+- Kept mock repositories operational for non-Supabase runs.
+
+Supabase runtime compatibility fixes applied:
+- Article repository hardened to tolerate missing/renamed columns (`topic`, `topics`, etc.).
+- Learn repository hardened for legacy track column names (`total_modules` fallback variants).
+- Profile repository now returns guest fallback if auth session missing (prevents hard crash on You page).
+
+==================================================
+5) Migration Failures Encountered + Root Cause
+==================================================
+Observed errors included:
+- missing `game_rounds`
+- missing `profiles.username`
+- `profiles.email` NOT NULL violations
+- profile FK to `auth.users`
+- missing `user_settings`
+- missing `user_progression`
+- missing `quiz_set_id`
+- missing `claim_status`
+
+Root cause:
+- Existing Supabase project had legacy tables with divergent column sets.
+- `create table if not exists` does not backfill missing columns in existing tables.
+- Manual SQL runs out of strict order amplified drift.
+
+Resolution pattern:
+- Add compatibility patch migrations.
+- Provide clean-reset domain SQL (drop neuws domain tables only), then rerun migrations in strict order.
+
+==================================================
+6) Dev Runtime Onboarding Improvements
+==================================================
+- Added `.vscode/launch.json` configs:
+  - `nEUws (Mock Data)`
+  - `nEUws (Supabase Local)` via `--dart-define-from-file=.env/supabase.local.json`
+- Added `.env/supabase.local.example.json`.
+- Added `.env/supabase.local.json` to `.gitignore`.
+- README updated with non-dev-friendly local run steps.
+
+Important:
+- End users never type keys.
+- Keys are build-time config for dev/CI/release builds.
+
+==================================================
+7) Documentation/Agent Handoff Updates
+==================================================
+- `docs/backend_schema.md` updated with:
+  - migration runbook
+  - strict migration execution order
+  - clean-reset SQL for schema drift recovery
+  - local run modes (mock vs Supabase)
+- `AGENTS.md` updated with:
+  - mandatory read list including this log
+  - migration execution rules for legacy drift
+  - local runtime rules and secrets handling
+
+==================================================
+8) Validation Status
+==================================================
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+
+==================================================
+9) Next Practical Steps
+==================================================
+1. Seed minimal real data for article/localizations/focus vocab so article page is populated with realistic content.
+2. Add auth onboarding check in-app (clear "sign in required" states where user-scoped data is empty).
+3. Add one migration smoke-check SQL script (`docs` snippet or migration helper) to verify critical tables/columns before running seeds.

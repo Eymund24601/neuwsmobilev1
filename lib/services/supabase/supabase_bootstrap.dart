@@ -35,25 +35,44 @@ class SupabaseBootstrap {
 
   static String? _readUrl() {
     const direct = String.fromEnvironment('SUPABASE_URL');
-    if (direct.trim().isNotEmpty) {
-      return direct.trim();
+    final directValue = direct.trim();
+    if (_isUsableValue(directValue) && _looksLikeUrl(directValue)) {
+      return directValue;
     }
     const nextStyle = String.fromEnvironment('NEXT_PUBLIC_SUPABASE_URL');
-    if (nextStyle.trim().isNotEmpty) {
-      return nextStyle.trim();
+    final nextStyleValue = nextStyle.trim();
+    if (_isUsableValue(nextStyleValue) && _looksLikeUrl(nextStyleValue)) {
+      return nextStyleValue;
     }
     return null;
   }
 
   static String? _readAnonKey() {
     const direct = String.fromEnvironment('SUPABASE_ANON_KEY');
-    if (direct.trim().isNotEmpty) {
-      return direct.trim();
+    final directValue = direct.trim();
+    if (_isUsableValue(directValue)) {
+      return directValue;
     }
     const nextStyle = String.fromEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY');
-    if (nextStyle.trim().isNotEmpty) {
-      return nextStyle.trim();
+    final nextStyleValue = nextStyle.trim();
+    if (_isUsableValue(nextStyleValue)) {
+      return nextStyleValue;
     }
     return null;
+  }
+
+  static bool _isUsableValue(String value) {
+    if (value.isEmpty) {
+      return false;
+    }
+    final normalized = value.toLowerCase();
+    return !normalized.contains('your_') &&
+        !normalized.contains('change_me') &&
+        !normalized.contains('example');
+  }
+
+  static bool _looksLikeUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null && (uri.scheme == 'https' || uri.scheme == 'http');
   }
 }

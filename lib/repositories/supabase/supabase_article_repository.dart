@@ -17,36 +17,22 @@ class SupabaseArticleRepository implements ArticleRepository {
 
   @override
   Future<ArticleDetail?> getArticleDetailBySlug(String slug) async {
-    final row = await _client
-        .from('articles')
-        .select('''
-          id,
-          slug,
-          title,
-          content,
-          excerpt,
-          topic,
-          category,
-          country_code,
-          country_tags,
-          read_time_minutes,
-          read_time,
-          image_asset,
-          hero_image_url,
-          language_top,
-          language_bottom,
-          body_top,
-          body_bottom,
-          published_at,
-          created_at,
-          author_name,
-          author_location,
-          byline,
-          profiles:author_id(display_name, city, country_code)
-          ''')
-        .eq('slug', slug)
-        .eq('is_published', true)
-        .maybeSingle();
+    Map<String, dynamic>? row;
+    try {
+      row = await _client
+          .from('articles')
+          .select('*, profiles:author_id(display_name, city, country_code)')
+          .eq('slug', slug)
+          .eq('is_published', true)
+          .maybeSingle();
+    } on PostgrestException {
+      row = await _client
+          .from('articles')
+          .select('*')
+          .eq('slug', slug)
+          .eq('is_published', true)
+          .maybeSingle();
+    }
 
     if (row == null) {
       return null;
@@ -73,16 +59,14 @@ class SupabaseArticleRepository implements ArticleRepository {
       return null;
     }
 
-    final articleId = SupabaseMappingUtils.stringValue(
-      articleRow,
-      const ['id'],
-      fallback: slug,
-    );
-    final canonicalLang = SupabaseMappingUtils.stringValue(
-      articleRow,
-      const ['canonical_lang', 'canonical_language', 'language_top'],
-      fallback: topLang,
-    );
+    final articleId = SupabaseMappingUtils.stringValue(articleRow, const [
+      'id',
+    ], fallback: slug);
+    final canonicalLang = SupabaseMappingUtils.stringValue(articleRow, const [
+      'canonical_lang',
+      'canonical_language',
+      'language_top',
+    ], fallback: topLang);
     final canonicalLocalizationId = SupabaseMappingUtils.stringValue(
       articleRow,
       const ['canonical_localization_id'],
@@ -141,7 +125,8 @@ class SupabaseArticleRepository implements ArticleRepository {
       ]);
     }
 
-    final ArticleLocalization canonicalLocalization = canonicalLocalizationId.isNotEmpty
+    final ArticleLocalization canonicalLocalization =
+        canonicalLocalizationId.isNotEmpty
         ? localizations.firstWhere(
             (item) => item.id == canonicalLocalizationId,
             orElse: () => localizations.first,
@@ -176,9 +161,9 @@ class SupabaseArticleRepository implements ArticleRepository {
         .eq('article_id', articleId)
         .eq('from_localization_id', canonicalLocalization.id)
         .inFilter('to_localization_id', [
-      topLocalization.id,
-      bottomLocalization.id,
-    ]);
+          topLocalization.id,
+          bottomLocalization.id,
+        ]);
 
     ArticleAlignmentPack? alignmentToTop;
     ArticleAlignmentPack? alignmentToBottom;
@@ -260,27 +245,33 @@ class SupabaseArticleRepository implements ArticleRepository {
     final upperCode = key.toUpperCase();
     final lowerKey = key.toLowerCase();
 
-    final topicRows = await _client
+    final allRows = await _client
         .from('articles')
-        .select(_summarySelect)
+        .select('*')
         .eq('is_published', true)
-        .or('topic.ilike.%$lowerKey%,category.ilike.%$lowerKey%')
         .order('published_at', ascending: false)
-        .limit(20);
-
-    final countryRows = await _client
-        .from('articles')
-        .select(_summarySelect)
-        .eq('is_published', true)
-        .or('country_code.eq.$upperCode,country_tags.cs.{$upperCode}')
-        .order('published_at', ascending: false)
-        .limit(20);
+        .limit(100);
 
     final merged = <String, ArticleSummary>{};
-    for (final dynamic row in [...topicRows, ...countryRows]) {
+    for (final dynamic row in allRows) {
       final map = row as Map<String, dynamic>;
+      if (!_matchesTopicOrCountry(
+        map,
+        lowerKey: lowerKey,
+        upperCode: upperCode,
+      )) {
+        continue;
+      }
       final summary = _mapSummary(map);
       merged[summary.id] = summary;
+    }
+
+    if (merged.isEmpty) {
+      for (final dynamic row in allRows.take(20)) {
+        final map = row as Map<String, dynamic>;
+        final summary = _mapSummary(map);
+        merged[summary.id] = summary;
+      }
     }
 
     return TopicFeed(
@@ -294,7 +285,7 @@ class SupabaseArticleRepository implements ArticleRepository {
   Future<List<ArticleSummary>> getTopStories() async {
     final rows = await _client
         .from('articles')
-        .select(_summarySelect)
+        .select('*')
         .eq('is_published', true)
         .order('published_at', ascending: false)
         .limit(25);
@@ -306,26 +297,8 @@ class SupabaseArticleRepository implements ArticleRepository {
         .toList();
   }
 
-  static const _summarySelect = '''
-      id,
-      slug,
-      title,
-      topic,
-      category,
-      country_code,
-      country_tags,
-      read_time_minutes,
-      read_time,
-      published_at,
-      created_at,
-      is_premium
-    ''';
-
   ArticleSummary _mapSummary(Map<String, dynamic> row) {
-    final topic = SupabaseMappingUtils.stringValue(row, const [
-      'topic',
-      'category',
-    ], fallback: 'General');
+    final topic = _topicLabel(row);
     final countryCode = _countryCodeLabel(row);
     final publishedAt = SupabaseMappingUtils.dateTimeValue(row, const [
       'published_at',
@@ -396,10 +369,7 @@ class SupabaseArticleRepository implements ArticleRepository {
         'hero_image_url',
         'image_asset',
       ], fallback: 'assets/images/placeholder.jpg'),
-      topic: SupabaseMappingUtils.stringValue(row, const [
-        'topic',
-        'category',
-      ], fallback: 'General'),
+      topic: _topicLabel(row),
       excerpt: SupabaseMappingUtils.stringValue(row, const [
         'excerpt',
       ], fallback: ''),
@@ -431,15 +401,23 @@ class SupabaseArticleRepository implements ArticleRepository {
   ArticleLocalization _mapLocalization(Map<String, dynamic> row) {
     return ArticleLocalization(
       id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
-      articleId:
-          SupabaseMappingUtils.stringValue(row, const ['article_id'], fallback: ''),
+      articleId: SupabaseMappingUtils.stringValue(row, const [
+        'article_id',
+      ], fallback: ''),
       lang: SupabaseMappingUtils.stringValue(row, const ['lang'], fallback: ''),
-      title: SupabaseMappingUtils.stringValue(row, const ['title'], fallback: ''),
-      excerpt: SupabaseMappingUtils.stringValue(row, const ['excerpt'], fallback: ''),
+      title: SupabaseMappingUtils.stringValue(row, const [
+        'title',
+      ], fallback: ''),
+      excerpt: SupabaseMappingUtils.stringValue(row, const [
+        'excerpt',
+      ], fallback: ''),
       body: SupabaseMappingUtils.stringValue(row, const ['body'], fallback: ''),
-      contentHash:
-          SupabaseMappingUtils.stringValue(row, const ['content_hash'], fallback: ''),
-      version: SupabaseMappingUtils.intValue(row, const ['version'], fallback: 1),
+      contentHash: SupabaseMappingUtils.stringValue(row, const [
+        'content_hash',
+      ], fallback: ''),
+      version: SupabaseMappingUtils.intValue(row, const [
+        'version',
+      ], fallback: 1),
       createdAt: SupabaseMappingUtils.dateTimeValue(row, const ['created_at']),
     );
   }
@@ -452,43 +430,45 @@ class SupabaseArticleRepository implements ArticleRepository {
     required String fallbackBody,
     required String suffix,
   }) {
-    final body = SupabaseMappingUtils.stringValue(
-      articleRow,
-      [bodyKey, fallbackBody],
-      fallback: '',
-    );
+    final body = SupabaseMappingUtils.stringValue(articleRow, [
+      bodyKey,
+      fallbackBody,
+    ], fallback: '');
     return ArticleLocalization(
       id: '$articleId-$suffix',
       articleId: articleId,
       lang: lang,
-      title: SupabaseMappingUtils.stringValue(articleRow, const ['title'], fallback: ''),
-      excerpt:
-          SupabaseMappingUtils.stringValue(articleRow, const ['excerpt'], fallback: ''),
+      title: SupabaseMappingUtils.stringValue(articleRow, const [
+        'title',
+      ], fallback: ''),
+      excerpt: SupabaseMappingUtils.stringValue(articleRow, const [
+        'excerpt',
+      ], fallback: ''),
       body: body,
       contentHash: '',
       version: 1,
-      createdAt: SupabaseMappingUtils.dateTimeValue(articleRow, const ['created_at']),
+      createdAt: SupabaseMappingUtils.dateTimeValue(articleRow, const [
+        'created_at',
+      ]),
     );
   }
 
   ArticleAlignmentPack _mapAlignment(Map<String, dynamic> row) {
     return ArticleAlignmentPack(
       id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
-      articleId:
-          SupabaseMappingUtils.stringValue(row, const ['article_id'], fallback: ''),
-      fromLocalizationId: SupabaseMappingUtils.stringValue(
-        row,
-        const ['from_localization_id'],
-        fallback: '',
-      ),
-      toLocalizationId: SupabaseMappingUtils.stringValue(
-        row,
-        const ['to_localization_id'],
-        fallback: '',
-      ),
+      articleId: SupabaseMappingUtils.stringValue(row, const [
+        'article_id',
+      ], fallback: ''),
+      fromLocalizationId: SupabaseMappingUtils.stringValue(row, const [
+        'from_localization_id',
+      ], fallback: ''),
+      toLocalizationId: SupabaseMappingUtils.stringValue(row, const [
+        'to_localization_id',
+      ], fallback: ''),
       alignmentJson: row['alignment_json'],
-      algoVersion:
-          SupabaseMappingUtils.stringValue(row, const ['algo_version'], fallback: ''),
+      algoVersion: SupabaseMappingUtils.stringValue(row, const [
+        'algo_version',
+      ], fallback: ''),
       qualityScore: (row['quality_score'] as num?)?.toDouble(),
     );
   }
@@ -528,21 +508,24 @@ class SupabaseArticleRepository implements ArticleRepository {
     }
 
     final vocabItem = VocabItem(
-      id: SupabaseMappingUtils.stringValue(vocabMap, const ['id'], fallback: ''),
-      canonicalLang: SupabaseMappingUtils.stringValue(
-        vocabMap,
-        const ['canonical_lang'],
-        fallback: '',
-      ),
-      canonicalLemma: SupabaseMappingUtils.stringValue(
-        vocabMap,
-        const ['canonical_lemma'],
-        fallback: '',
-      ),
-      pos: SupabaseMappingUtils.stringValue(vocabMap, const ['pos'], fallback: ''),
-      difficulty:
-          SupabaseMappingUtils.stringValue(vocabMap, const ['difficulty'], fallback: ''),
-      createdAt: SupabaseMappingUtils.dateTimeValue(vocabMap, const ['created_at']),
+      id: SupabaseMappingUtils.stringValue(vocabMap, const [
+        'id',
+      ], fallback: ''),
+      canonicalLang: SupabaseMappingUtils.stringValue(vocabMap, const [
+        'canonical_lang',
+      ], fallback: ''),
+      canonicalLemma: SupabaseMappingUtils.stringValue(vocabMap, const [
+        'canonical_lemma',
+      ], fallback: ''),
+      pos: SupabaseMappingUtils.stringValue(vocabMap, const [
+        'pos',
+      ], fallback: ''),
+      difficulty: SupabaseMappingUtils.stringValue(vocabMap, const [
+        'difficulty',
+      ], fallback: ''),
+      createdAt: SupabaseMappingUtils.dateTimeValue(vocabMap, const [
+        'created_at',
+      ]),
     );
 
     final entry = _pickEntryForLang(vocabMap['vocab_entries'], uiLang);
@@ -565,7 +548,8 @@ class SupabaseArticleRepository implements ArticleRepository {
     }
     for (final dynamic entryRow in rawEntries) {
       final entryMap = entryRow as Map<String, dynamic>;
-      if (SupabaseMappingUtils.stringValue(entryMap, const ['lang']) == uiLang) {
+      if (SupabaseMappingUtils.stringValue(entryMap, const ['lang']) ==
+          uiLang) {
         return _mapVocabEntry(entryMap);
       }
     }
@@ -583,7 +567,9 @@ class SupabaseArticleRepository implements ArticleRepository {
       return const [];
     }
     final forms = rawForms
-        .map((dynamic formRow) => _mapVocabForm(formRow as Map<String, dynamic>))
+        .map(
+          (dynamic formRow) => _mapVocabForm(formRow as Map<String, dynamic>),
+        )
         .toList();
     return forms.where((form) => langs.contains(form.lang)).toList();
   }
@@ -593,40 +579,46 @@ class SupabaseArticleRepository implements ArticleRepository {
     final tags = row['tags'];
     return VocabEntry(
       id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
-      vocabItemId: SupabaseMappingUtils.stringValue(
-        row,
-        const ['vocab_item_id'],
-        fallback: '',
-      ),
+      vocabItemId: SupabaseMappingUtils.stringValue(row, const [
+        'vocab_item_id',
+      ], fallback: ''),
       lang: SupabaseMappingUtils.stringValue(row, const ['lang'], fallback: ''),
-      primaryDefinition: SupabaseMappingUtils.stringValue(
-        row,
-        const ['primary_definition'],
-        fallback: '',
-      ),
-      usageNotes:
-          SupabaseMappingUtils.stringValue(row, const ['usage_notes'], fallback: ''),
-      examples: examples is List ? examples.whereType<String>().toList() : const [],
+      primaryDefinition: SupabaseMappingUtils.stringValue(row, const [
+        'primary_definition',
+      ], fallback: ''),
+      usageNotes: SupabaseMappingUtils.stringValue(row, const [
+        'usage_notes',
+      ], fallback: ''),
+      examples: examples is List
+          ? examples.whereType<String>().toList()
+          : const [],
       tags: tags is List ? tags.whereType<String>().toList() : const [],
       updatedAt: SupabaseMappingUtils.dateTimeValue(row, const ['updated_at']),
-      updatedBy:
-          SupabaseMappingUtils.stringValue(row, const ['updated_by'], fallback: ''),
-      source: SupabaseMappingUtils.stringValue(row, const ['source'], fallback: ''),
+      updatedBy: SupabaseMappingUtils.stringValue(row, const [
+        'updated_by',
+      ], fallback: ''),
+      source: SupabaseMappingUtils.stringValue(row, const [
+        'source',
+      ], fallback: ''),
     );
   }
 
   VocabForm _mapVocabForm(Map<String, dynamic> row) {
     return VocabForm(
       id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
-      vocabItemId: SupabaseMappingUtils.stringValue(
-        row,
-        const ['vocab_item_id'],
-        fallback: '',
-      ),
+      vocabItemId: SupabaseMappingUtils.stringValue(row, const [
+        'vocab_item_id',
+      ], fallback: ''),
       lang: SupabaseMappingUtils.stringValue(row, const ['lang'], fallback: ''),
-      lemma: SupabaseMappingUtils.stringValue(row, const ['lemma'], fallback: ''),
-      surface: SupabaseMappingUtils.stringValue(row, const ['surface'], fallback: ''),
-      notes: SupabaseMappingUtils.stringValue(row, const ['notes'], fallback: ''),
+      lemma: SupabaseMappingUtils.stringValue(row, const [
+        'lemma',
+      ], fallback: ''),
+      surface: SupabaseMappingUtils.stringValue(row, const [
+        'surface',
+      ], fallback: ''),
+      notes: SupabaseMappingUtils.stringValue(row, const [
+        'notes',
+      ], fallback: ''),
     );
   }
 
@@ -647,5 +639,55 @@ class SupabaseArticleRepository implements ArticleRepository {
       return one.toUpperCase();
     }
     return 'EU';
+  }
+
+  String _topicLabel(Map<String, dynamic> row) {
+    final topic = SupabaseMappingUtils.stringValue(row, const [
+      'topic',
+      'category',
+    ]);
+    if (topic.isNotEmpty) {
+      return topic;
+    }
+    final topics = row['topics'];
+    if (topics is List) {
+      for (final dynamic item in topics) {
+        final text = '$item'.trim();
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+    }
+    return 'General';
+  }
+
+  bool _matchesTopicOrCountry(
+    Map<String, dynamic> row, {
+    required String lowerKey,
+    required String upperCode,
+  }) {
+    final topic = _topicLabel(row).toLowerCase();
+    final category = SupabaseMappingUtils.stringValue(row, const [
+      'category',
+    ]).toLowerCase();
+    if (topic.contains(lowerKey) || category.contains(lowerKey)) {
+      return true;
+    }
+
+    final countryCode = SupabaseMappingUtils.stringValue(row, const [
+      'country_code',
+    ]).toUpperCase();
+    if (countryCode == upperCode) {
+      return true;
+    }
+    final tags = row['country_tags'];
+    if (tags is List) {
+      for (final dynamic tag in tags) {
+        if ('$tag'.trim().toUpperCase() == upperCode) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }

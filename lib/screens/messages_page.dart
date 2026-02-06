@@ -1,74 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/community_models.dart';
+import '../providers/feature_data_providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/primary_top_bar.dart';
 
-class MessagesPage extends StatefulWidget {
+class MessagesPage extends ConsumerStatefulWidget {
   const MessagesPage({super.key});
 
   @override
-  State<MessagesPage> createState() => _MessagesPageState();
+  ConsumerState<MessagesPage> createState() => _MessagesPageState();
 }
 
-class _MessagesPageState extends State<MessagesPage> {
-  final List<_Conversation> _conversations = const [
-    _Conversation(
-      name: 'Marta Keller',
-      preview: 'New message',
-      timeLabel: '2h',
-      unread: true,
-    ),
-    _Conversation(
-      name: 'Lukas Brenner',
-      preview: 'Sent Monday',
-      timeLabel: 'Mon',
-    ),
-    _Conversation(
-      name: 'Lea Novak',
-      preview: 'Can we publish this thread tonight?',
-      timeLabel: '1d',
-      unread: true,
-    ),
-    _Conversation(
-      name: 'Miguel Sousa',
-      preview: 'Sent 5h ago',
-      timeLabel: '5h',
-    ),
-    _Conversation(
-      name: 'Aino Jarvinen',
-      preview: 'Loved your latest piece on Helsinki',
-      timeLabel: '2d',
-    ),
-    _Conversation(
-      name: 'Andrei Popescu',
-      preview: 'New message',
-      timeLabel: '3d',
-    ),
-  ];
-
-  final List<_Contact> _contacts = const [
-    _Contact(name: 'Marta Keller', relation: 'Follows you'),
-    _Contact(name: 'Lukas Brenner', relation: 'You follow each other'),
-    _Contact(name: 'Lea Novak', relation: 'Follows you'),
-    _Contact(name: 'Miguel Sousa', relation: 'You follow each other'),
-    _Contact(name: 'Aino Jarvinen', relation: 'You follow each other'),
-    _Contact(name: 'Andrei Popescu', relation: 'Follows you'),
-    _Contact(name: 'Nikos Petrou', relation: 'You follow each other'),
-  ];
-
+class _MessagesPageState extends ConsumerState<MessagesPage> {
   String _query = '';
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final filtered = _conversations.where((item) {
-      final query = _query.trim().toLowerCase();
-      if (query.isEmpty) {
-        return true;
-      }
-      return item.name.toLowerCase().contains(query) ||
-          item.preview.toLowerCase().contains(query);
-    }).toList();
+    final threadsAsync = ref.watch(messageThreadsProvider);
+    final contactsAsync = ref.watch(messageContactsProvider);
 
     return SafeArea(
       child: Column(
@@ -77,7 +29,7 @@ class _MessagesPageState extends State<MessagesPage> {
             title: 'Messages',
             trailing: [
               IconButton(
-                onPressed: _openNewMessage,
+                onPressed: () => _openNewMessage(contactsAsync),
                 icon: const Icon(Icons.edit_outlined),
                 tooltip: 'New message',
               ),
@@ -91,14 +43,43 @@ class _MessagesPageState extends State<MessagesPage> {
             ),
           ),
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-              itemCount: filtered.length,
-              separatorBuilder: (context, index) =>
-                  Divider(color: palette.border, height: 1),
-              itemBuilder: (context, index) {
-                final item = filtered[index];
-                return _ConversationRow(item: item);
+            child: threadsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text('Could not load messages: $error'),
+                ),
+              ),
+              data: (threads) {
+                final filtered = threads.where((item) {
+                  final query = _query.trim().toLowerCase();
+                  if (query.isEmpty) {
+                    return true;
+                  }
+                  return item.displayName.toLowerCase().contains(query) ||
+                      item.preview.toLowerCase().contains(query);
+                }).toList();
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No conversations yet.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: palette.muted),
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                  itemCount: filtered.length,
+                  separatorBuilder: (context, index) =>
+                      Divider(color: palette.border, height: 1),
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    return _ConversationRow(item: item);
+                  },
+                );
               },
             ),
           ),
@@ -107,7 +88,7 @@ class _MessagesPageState extends State<MessagesPage> {
     );
   }
 
-  void _openNewMessage() {
+  void _openNewMessage(AsyncValue<List<MessageContactSummary>> contactsAsync) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -118,62 +99,90 @@ class _MessagesPageState extends State<MessagesPage> {
 
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final filteredContacts = _contacts.where((item) {
-              final query = search.trim().toLowerCase();
-              if (query.isEmpty) {
-                return true;
-              }
-              return item.name.toLowerCase().contains(query) ||
-                  item.relation.toLowerCase().contains(query);
-            }).toList();
-
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                12,
-                16,
-                MediaQuery.of(context).viewInsets.bottom + 16,
+            return contactsAsync.when(
+              loading: () => const SizedBox(
+                height: 260,
+                child: Center(child: CircularProgressIndicator()),
               ),
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.66,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'New Message',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    _SearchInput(
-                      hintText: 'Search followers and following',
-                      onChanged: (value) => setModalState(() => search = value),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: filteredContacts.length,
-                        separatorBuilder: (context, index) =>
-                            Divider(color: palette.border, height: 1),
-                        itemBuilder: (context, index) {
-                          final contact = filteredContacts[index];
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const CircleAvatar(
-                              radius: 22,
-                              backgroundImage: AssetImage(
-                                'assets/images/placeholder-user.jpg',
-                              ),
-                            ),
-                            title: Text(contact.name),
-                            subtitle: Text(contact.relation),
-                            onTap: () => Navigator.of(context).pop(),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+              error: (error, stackTrace) => SizedBox(
+                height: 260,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text('Could not load contacts: $error'),
+                  ),
                 ),
               ),
+              data: (contacts) {
+                final filteredContacts = contacts.where((item) {
+                  final query = search.trim().toLowerCase();
+                  if (query.isEmpty) {
+                    return true;
+                  }
+                  return item.displayName.toLowerCase().contains(query) ||
+                      item.relation.toLowerCase().contains(query);
+                }).toList();
+
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    12,
+                    16,
+                    MediaQuery.of(context).viewInsets.bottom + 16,
+                  ),
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.66,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'New Message',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        _SearchInput(
+                          hintText: 'Search followers and following',
+                          onChanged: (value) =>
+                              setModalState(() => search = value),
+                        ),
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: filteredContacts.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'No contacts found.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: palette.muted),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  itemCount: filteredContacts.length,
+                                  separatorBuilder: (context, index) =>
+                                      Divider(color: palette.border, height: 1),
+                                  itemBuilder: (context, index) {
+                                    final contact = filteredContacts[index];
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const CircleAvatar(
+                                        radius: 22,
+                                        backgroundImage: AssetImage(
+                                          'assets/images/placeholder-user.jpg',
+                                        ),
+                                      ),
+                                      title: Text(contact.displayName),
+                                      subtitle: Text(contact.relation),
+                                      onTap: () => Navigator.of(context).pop(),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -185,11 +194,12 @@ class _MessagesPageState extends State<MessagesPage> {
 class _ConversationRow extends StatelessWidget {
   const _ConversationRow({required this.item});
 
-  final _Conversation item;
+  final MessageThreadSummary item;
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    final unread = item.unreadCount > 0;
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 6),
@@ -198,9 +208,9 @@ class _ConversationRow extends StatelessWidget {
         backgroundImage: AssetImage('assets/images/placeholder-user.jpg'),
       ),
       title: Text(
-        item.name,
+        item.displayName,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: item.unread ? FontWeight.w800 : FontWeight.w600,
+          fontWeight: unread ? FontWeight.w800 : FontWeight.w600,
         ),
       ),
       subtitle: Padding(
@@ -213,14 +223,14 @@ class _ConversationRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: item.unread
+                  color: unread
                       ? Theme.of(context).colorScheme.onSurface
                       : palette.muted,
-                  fontWeight: item.unread ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ),
-            if (item.unread) ...[
+            if (unread) ...[
               const SizedBox(width: 8),
               Container(
                 width: 10,
@@ -281,25 +291,4 @@ class _SearchInput extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Conversation {
-  const _Conversation({
-    required this.name,
-    required this.preview,
-    required this.timeLabel,
-    this.unread = false,
-  });
-
-  final String name;
-  final String preview;
-  final String timeLabel;
-  final bool unread;
-}
-
-class _Contact {
-  const _Contact({required this.name, required this.relation});
-
-  final String name;
-  final String relation;
 }

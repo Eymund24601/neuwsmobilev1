@@ -260,6 +260,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final topStories =
         ref.watch(topStoriesProvider).valueOrNull ?? const <ArticleSummary>[];
     final profile = ref.watch(profileProvider).valueOrNull;
+    final progression = ref.watch(userProgressionProvider).valueOrNull;
+    final perks = ref.watch(userPerksProvider).valueOrNull ?? const [];
     final events =
         ref.watch(eventsProvider).valueOrNull ?? const <EventSummary>[];
 
@@ -337,28 +339,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                   subtitle: 'Build your streak from stories',
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: const [
-                    Expanded(
-                      child: _WordBubble(
-                        word: 'civic',
-                        languageCode: 'EN',
-                        flagEmoji: '🇬🇧',
-                        leftUntilGolden: 3,
-                        progress: 0.62,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: _WordBubble(
-                        word: 'mandate',
-                        languageCode: 'DE',
-                        flagEmoji: '🇩🇪',
-                        leftUntilGolden: 2,
-                        progress: 0.74,
-                      ),
-                    ),
-                  ],
+                _ProgressSnapshotCard(
+                  streakDays:
+                      progression?.currentStreakDays ??
+                      profile?.streakDays ??
+                      0,
+                  xp: progression?.totalXp ?? profile?.points ?? 0,
+                  level: progression?.level ?? 1,
+                  unlockedPerks: perks.length,
                 ),
                 const SizedBox(height: 24),
                 _SectionHeader(
@@ -737,79 +725,76 @@ class _CreatorCard extends StatelessWidget {
   }
 }
 
-class _WordBubble extends StatelessWidget {
-  const _WordBubble({
-    required this.word,
-    required this.languageCode,
-    required this.flagEmoji,
-    required this.leftUntilGolden,
-    required this.progress,
+class _ProgressSnapshotCard extends StatelessWidget {
+  const _ProgressSnapshotCard({
+    required this.streakDays,
+    required this.xp,
+    required this.level,
+    required this.unlockedPerks,
   });
 
-  final String word;
-  final String languageCode;
-  final String flagEmoji;
-  final int leftUntilGolden;
-  final double progress;
+  final int streakDays;
+  final int xp;
+  final int level;
+  final int unlockedPerks;
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
 
     return Container(
-      height: 126,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: palette.surfaceCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: palette.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '$word means ____',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(flagEmoji),
-              const SizedBox(width: 4),
-              Text(
-                languageCode,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(color: palette.muted),
-              ),
-            ],
+          Expanded(
+            child: _ProgressStat(label: 'Streak', value: '${streakDays}d'),
           ),
-          const Spacer(),
-          Text(
-            '$leftUntilGolden left until golden',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: palette.muted,
-              fontSize: 15,
-            ),
+          Expanded(
+            child: _ProgressStat(label: 'XP', value: '$xp'),
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: palette.progressBg,
-              valueColor: AlwaysStoppedAnimation(
-                Theme.of(context).colorScheme.primary,
-              ),
-            ),
+          Expanded(
+            child: _ProgressStat(label: 'Level', value: '$level'),
+          ),
+          Expanded(
+            child: _ProgressStat(label: 'Perks', value: '$unlockedPerks'),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProgressStat extends StatelessWidget {
+  const _ProgressStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: palette.muted),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 }

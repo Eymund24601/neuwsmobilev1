@@ -17,14 +17,17 @@ class SupabaseEventsRepository implements EventsRepository {
           id,
           title,
           location,
+          location_label,
           city,
           country_code,
           start_date,
+          start_at,
           tag,
           category,
           description,
           image_asset,
-          cover_image_url
+          cover_image_url,
+          is_published
           ''')
         .eq('id', eventId)
         .maybeSingle();
@@ -37,24 +40,51 @@ class SupabaseEventsRepository implements EventsRepository {
   @override
   Future<List<EventSummary>> getUpcomingEvents() async {
     final nowIso = DateTime.now().toIso8601String();
-    final rows = await _client
-        .from('events')
-        .select('''
-          id,
-          title,
-          location,
-          city,
-          country_code,
-          start_date,
-          tag,
-          category,
-          description,
-          image_asset,
-          cover_image_url
-          ''')
-        .gte('start_date', nowIso)
-        .order('start_date', ascending: true)
-        .limit(40);
+    List<dynamic> rows;
+    try {
+      rows = await _client
+          .from('events')
+          .select('''
+            id,
+            title,
+            location,
+            location_label,
+            city,
+            country_code,
+            start_date,
+            start_at,
+            tag,
+            category,
+            description,
+            image_asset,
+            cover_image_url,
+            is_published
+            ''')
+          .eq('is_published', true)
+          .or('start_date.gte.$nowIso,start_at.gte.$nowIso')
+          .order('start_at', ascending: true, nullsFirst: false)
+          .order('start_date', ascending: true, nullsFirst: false)
+          .limit(40);
+    } on PostgrestException {
+      rows = await _client
+          .from('events')
+          .select('''
+            id,
+            title,
+            location,
+            city,
+            country_code,
+            start_date,
+            tag,
+            category,
+            description,
+            image_asset,
+            cover_image_url
+            ''')
+          .gte('start_date', nowIso)
+          .order('start_date', ascending: true)
+          .limit(40);
+    }
 
     return rows
         .map<EventSummary>(
@@ -64,14 +94,17 @@ class SupabaseEventsRepository implements EventsRepository {
   }
 
   EventSummary _mapEvent(Map<String, dynamic> row) {
-    final date = SupabaseMappingUtils.dateTimeValue(row, const ['start_date']);
+    final date = SupabaseMappingUtils.dateTimeValue(row, const [
+      'start_at',
+      'start_date',
+    ]);
     final month = date == null ? 'TBD' : _months[date.month - 1];
     final dateLabel = date == null
         ? 'DATE TBD'
         : '$month ${date.day.toString().padLeft(2, '0')} - ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     final location = SupabaseMappingUtils.stringValue(
       row,
-      const ['location'],
+      const ['location', 'location_label'],
       fallback: [
         SupabaseMappingUtils.stringValue(row, const ['city']),
         SupabaseMappingUtils.stringValue(row, const ['country_code']),

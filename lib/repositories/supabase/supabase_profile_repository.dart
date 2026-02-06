@@ -14,7 +14,7 @@ class SupabaseProfileRepository implements ProfileRepository {
   Future<UserProfile> getCurrentProfile() async {
     final authUser = _client.auth.currentUser;
     if (authUser == null) {
-      throw StateError('No signed-in user. Supabase auth session is required.');
+      return _fallbackProfile('guest');
     }
 
     final row = await _client
@@ -37,8 +37,6 @@ class SupabaseProfileRepository implements ProfileRepository {
           avatar_url,
           wallpaper_url,
           subscription_tier,
-          streak_days,
-          points,
           is_creator
           ''')
         .eq('id', authUser.id)
@@ -48,10 +46,13 @@ class SupabaseProfileRepository implements ProfileRepository {
       return _fallbackProfile(authUser.id);
     }
 
-    return _mapProfile(row);
+    return _mapProfile(row, authUser.id);
   }
 
-  UserProfile _mapProfile(Map<String, dynamic> row) {
+  Future<UserProfile> _mapProfile(
+    Map<String, dynamic> row,
+    String userId,
+  ) async {
     final birthDate = SupabaseMappingUtils.dateTimeValue(row, const [
       'birthdate',
     ]);
@@ -96,6 +97,17 @@ class SupabaseProfileRepository implements ProfileRepository {
           : 'Joined ${_monthName(joinedAt.month)} ${joinedAt.year}',
     );
 
+    final progression = await _safeSingle(
+      'user_progression',
+      'total_xp,level,current_streak_days',
+      userId,
+    );
+    final stats = await _safeSingle(
+      'user_stats',
+      'follower_count,following_count',
+      userId,
+    );
+
     return UserProfile(
       id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
       displayName: SupabaseMappingUtils.stringValue(row, const [
@@ -110,12 +122,20 @@ class SupabaseProfileRepository implements ProfileRepository {
       ], fallback: 'EU'),
       bio: SupabaseMappingUtils.stringValue(row, const ['bio'], fallback: ''),
       nationalityCodes: nationalityCodes,
-      followers: SupabaseMappingUtils.intValue(row, const [
-        'followers_count',
-      ], fallback: 0),
-      following: SupabaseMappingUtils.intValue(row, const [
-        'following_count',
-      ], fallback: 0),
+      followers: stats == null
+          ? SupabaseMappingUtils.intValue(row, const [
+              'followers_count',
+            ], fallback: 0)
+          : SupabaseMappingUtils.intValue(stats, const [
+              'follower_count',
+            ], fallback: 0),
+      following: stats == null
+          ? SupabaseMappingUtils.intValue(row, const [
+              'following_count',
+            ], fallback: 0)
+          : SupabaseMappingUtils.intValue(stats, const [
+              'following_count',
+            ], fallback: 0),
       joinedLabel: joinedLabel,
       showAgePublic: SupabaseMappingUtils.boolValue(row, const [
         'show_age_public',
@@ -128,10 +148,18 @@ class SupabaseProfileRepository implements ProfileRepository {
         'wallpaper_url',
       ], fallback: 'assets/images/placeholder.jpg'),
       subscriptionTier: tier,
-      streakDays: SupabaseMappingUtils.intValue(row, const [
-        'streak_days',
-      ], fallback: 0),
-      points: SupabaseMappingUtils.intValue(row, const ['points'], fallback: 0),
+      streakDays: progression == null
+          ? SupabaseMappingUtils.intValue(row, const [
+              'streak_days',
+            ], fallback: 0)
+          : SupabaseMappingUtils.intValue(progression, const [
+              'current_streak_days',
+            ], fallback: 0),
+      points: progression == null
+          ? SupabaseMappingUtils.intValue(row, const ['points'], fallback: 0)
+          : SupabaseMappingUtils.intValue(progression, const [
+              'total_xp',
+            ], fallback: 0),
       isCreator: SupabaseMappingUtils.boolValue(row, const [
         'is_creator',
       ], fallback: false),
@@ -177,5 +205,21 @@ class SupabaseProfileRepository implements ProfileRepository {
       'December',
     ];
     return names[month - 1];
+  }
+
+  Future<Map<String, dynamic>?> _safeSingle(
+    String table,
+    String select,
+    String userId,
+  ) async {
+    try {
+      return await _client
+          .from(table)
+          .select(select)
+          .eq('user_id', userId)
+          .maybeSingle();
+    } on PostgrestException {
+      return null;
+    }
   }
 }

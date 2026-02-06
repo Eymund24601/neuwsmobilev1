@@ -123,7 +123,7 @@ void main() {
     await pumpApp(tester);
 
     await switchTab(tester, 3);
-    expect(find.text('Puzzles & Quizzes'), findsOneWidget);
+    expect(find.text('Puzzles'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Open Quiz Categories'),

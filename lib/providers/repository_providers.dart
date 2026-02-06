@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/article_repository.dart';
+import '../repositories/community_repository.dart';
 import '../repositories/creator_repository.dart';
 import '../repositories/events_repository.dart';
 import '../repositories/games_repository.dart';
 import '../repositories/learn_repository.dart';
 import '../repositories/mock/mock_article_repository.dart';
+import '../repositories/mock/mock_community_repository.dart';
 import '../repositories/mock/mock_creator_repository.dart';
 import '../repositories/mock/mock_events_repository.dart';
 import '../repositories/mock/mock_games_repository.dart';
@@ -15,6 +17,7 @@ import '../repositories/mock/mock_settings_repository.dart';
 import '../repositories/profile_repository.dart';
 import '../repositories/settings_repository.dart';
 import '../repositories/supabase/supabase_article_repository.dart';
+import '../repositories/supabase/supabase_community_repository.dart';
 import '../repositories/supabase/supabase_creator_repository.dart';
 import '../repositories/supabase/supabase_events_repository.dart';
 import '../repositories/supabase/supabase_games_repository.dart';
@@ -74,4 +77,11 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
     return MockSettingsRepository();
   }
   return const SupabaseSettingsRepository();
+});
+
+final communityRepositoryProvider = Provider<CommunityRepository>((ref) {
+  if (ref.watch(useMockDataProvider)) {
+    return MockCommunityRepository();
+  }
+  return const SupabaseCommunityRepository();
 });
