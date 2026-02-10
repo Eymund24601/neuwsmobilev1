@@ -42,9 +42,6 @@ class _MessageThreadPageState extends ConsumerState<MessageThreadPage> {
       }
       await ref
           .read(messageThreadMessagesProvider(widget.threadId).notifier)
-          .refresh();
-      await ref
-          .read(messageThreadMessagesProvider(widget.threadId).notifier)
           .markRead();
       _bindRealtime();
     });
@@ -262,7 +259,6 @@ class _MessageThreadPageState extends ConsumerState<MessageThreadPage> {
       await ref
           .read(messageThreadMessagesProvider(widget.threadId).notifier)
           .markRead();
-      await ref.read(messageThreadsProvider.notifier).refresh();
     });
   }
 

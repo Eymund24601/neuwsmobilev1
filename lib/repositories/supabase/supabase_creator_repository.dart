@@ -19,11 +19,22 @@ class SupabaseCreatorRepository implements CreatorRepository {
       );
     }
 
-    final profileRow = await _client
-        .from('profiles')
-        .select('estimated_earnings')
-        .eq('id', authUser.id)
-        .maybeSingle();
+    Map<String, dynamic>? profileRow;
+    try {
+      profileRow = await _client
+          .from('profiles')
+          .select('estimated_earnings')
+          .eq('id', authUser.id)
+          .maybeSingle();
+    } on PostgrestException {
+      // Compatibility fallback for environments that do not have
+      // profiles.estimated_earnings yet.
+      profileRow = await _client
+          .from('profiles')
+          .select('id')
+          .eq('id', authUser.id)
+          .maybeSingle();
+    }
 
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1).toIso8601String();

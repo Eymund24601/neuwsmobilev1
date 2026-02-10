@@ -7,6 +7,7 @@ class MessageThreadSummary {
     required this.unreadCount,
     this.otherUserId,
     this.otherUserAvatarUrl,
+    this.otherUsername,
   });
 
   final String threadId;
@@ -16,6 +17,7 @@ class MessageThreadSummary {
   final int unreadCount;
   final String? otherUserId;
   final String? otherUserAvatarUrl;
+  final String? otherUsername;
 
   factory MessageThreadSummary.fromJson(Map<String, dynamic> json) {
     return MessageThreadSummary(
@@ -26,6 +28,7 @@ class MessageThreadSummary {
       unreadCount: json['unreadCount'] as int? ?? 0,
       otherUserId: json['otherUserId'] as String?,
       otherUserAvatarUrl: json['otherUserAvatarUrl'] as String?,
+      otherUsername: json['otherUsername'] as String?,
     );
   }
 
@@ -38,6 +41,7 @@ class MessageThreadSummary {
       'unreadCount': unreadCount,
       'otherUserId': otherUserId,
       'otherUserAvatarUrl': otherUserAvatarUrl,
+      'otherUsername': otherUsername,
     };
   }
 }
@@ -96,23 +100,31 @@ class MessageContactSummary {
   const MessageContactSummary({
     required this.userId,
     required this.displayName,
+    required this.username,
     required this.relation,
   });
 
   final String userId;
   final String displayName;
+  final String username;
   final String relation;
 
   factory MessageContactSummary.fromJson(Map<String, dynamic> json) {
     return MessageContactSummary(
       userId: json['userId'] as String,
       displayName: json['displayName'] as String,
+      username: json['username'] as String? ?? '',
       relation: json['relation'] as String,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'userId': userId, 'displayName': displayName, 'relation': relation};
+    return {
+      'userId': userId,
+      'displayName': displayName,
+      'username': username,
+      'relation': relation,
+    };
   }
 }
 

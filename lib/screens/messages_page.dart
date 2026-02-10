@@ -42,8 +42,6 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       if (!mounted) {
         return;
       }
-      ref.read(messageThreadsProvider.notifier).refresh();
-      ref.read(messageContactsProvider.notifier).refresh();
       _bindRealtime();
     });
   }
@@ -107,6 +105,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                     return true;
                   }
                   return item.displayName.toLowerCase().contains(query) ||
+                      (item.otherUsername?.toLowerCase().contains(query) ??
+                          false) ||
                       item.preview.toLowerCase().contains(query);
                 }).toList();
                 if (filtered.isEmpty) {
@@ -188,7 +188,6 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
         return;
       }
       await ref.read(messageThreadsProvider.notifier).refresh();
-      await ref.read(messageContactsProvider.notifier).refresh();
     });
   }
 
@@ -224,6 +223,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                     return true;
                   }
                   return item.displayName.toLowerCase().contains(query) ||
+                      item.username.toLowerCase().contains(query) ||
                       item.relation.toLowerCase().contains(query);
                 }).toList();
 
@@ -276,7 +276,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                                         ),
                                       ),
                                       title: Text(contact.displayName),
-                                      subtitle: Text(contact.relation),
+                                      subtitle: Text(
+                                        contact.username.trim().isEmpty
+                                            ? contact.relation
+                                            : '@${contact.username} - ${contact.relation}',
+                                      ),
                                       onTap: () {
                                         Navigator.of(context).pop();
                                         _openThreadByContact(contact);
@@ -341,6 +345,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           unreadCount: 0,
           otherUserId: contact.userId,
           otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
+          otherUsername: contact.username,
         );
       } catch (error) {
         if (!mounted) {

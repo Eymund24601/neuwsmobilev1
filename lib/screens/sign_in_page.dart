@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/app_routes.dart';
+import '../providers/feature_data_providers.dart';
 import '../services/supabase/supabase_bootstrap.dart';
 import '../theme/app_theme.dart';
 
-class SignInPage extends StatefulWidget {
+class SignInPage extends ConsumerStatefulWidget {
   const SignInPage({super.key});
 
   @override
-  State<SignInPage> createState() => _SignInPageState();
+  ConsumerState<SignInPage> createState() => _SignInPageState();
 }
 
-class _SignInPageState extends State<SignInPage> {
+class _SignInPageState extends ConsumerState<SignInPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSignUpMode = false;
   bool _submitting = false;
+  bool _stabilizingSession = false;
 
   @override
   void dispose() {
@@ -52,6 +55,7 @@ class _SignInPageState extends State<SignInPage> {
         );
         if (hasSession) {
           await _ensureProfileRow();
+          await _stabilizeSignedInState();
           _goAfterAuth();
         }
       } else {
@@ -60,6 +64,7 @@ class _SignInPageState extends State<SignInPage> {
           password: password,
         );
         await _ensureProfileRow();
+        await _stabilizeSignedInState();
         if (!mounted) {
           return;
         }
@@ -79,6 +84,54 @@ class _SignInPageState extends State<SignInPage> {
 
   void _showMessage(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _stabilizeSignedInState() async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _stabilizingSession = true);
+    try {
+      await _waitForSession();
+
+      ref.invalidate(profileProvider);
+      ref.invalidate(settingsProvider);
+      ref.invalidate(messageThreadsProvider);
+      ref.invalidate(messageContactsProvider);
+      ref.invalidate(savedArticlesProvider);
+      ref.invalidate(userCollectionsProvider);
+      ref.invalidate(userPerksProvider);
+      ref.invalidate(userProgressionProvider);
+      ref.invalidate(repostedArticlesProvider);
+      ref.invalidate(creatorStudioProvider);
+
+      await Future.wait([
+        ref.read(profileProvider.future),
+        ref.read(settingsProvider.future),
+        ref.read(messageThreadsProvider.future),
+        ref.read(messageContactsProvider.future),
+      ]).timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // Keep sign-in flow fast even if one warmup fetch fails or times out.
+    } finally {
+      if (mounted) {
+        setState(() => _stabilizingSession = false);
+      }
+    }
+  }
+
+  Future<void> _waitForSession() async {
+    if (Supabase.instance.client.auth.currentSession != null) {
+      return;
+    }
+    try {
+      await Supabase.instance.client.auth.onAuthStateChange
+          .firstWhere((event) => event.session != null)
+          .timeout(const Duration(seconds: 3));
+    } catch (_) {
+      // Session hydration can be slightly delayed; proceed best-effort.
+    }
   }
 
   Future<void> _ensureProfileRow() async {
@@ -103,7 +156,8 @@ class _SignInPageState extends State<SignInPage> {
         try {
           await Supabase.instance.client
               .from('profiles')
-              .update({'email': email}).eq('id', user.id);
+              .update({'email': email})
+              .eq('id', user.id);
         } catch (_) {
           // Keep sign-in resilient even when profile schema differs.
         }
@@ -232,10 +286,16 @@ class _SignInPageState extends State<SignInPage> {
             ),
           ),
           const SizedBox(height: 16),
+          if (_stabilizingSession) ...[
+            const LinearProgressIndicator(minHeight: 2),
+            const SizedBox(height: 12),
+          ],
           FilledButton(
-            onPressed: (!isConfigured || _submitting) ? null : _submit,
+            onPressed: (!isConfigured || _submitting || _stabilizingSession)
+                ? null
+                : _submit,
             child: Text(
-              _submitting
+              _submitting || _stabilizingSession
                   ? 'Please wait...'
                   : (_isSignUpMode ? 'Create Account' : 'Sign In'),
             ),

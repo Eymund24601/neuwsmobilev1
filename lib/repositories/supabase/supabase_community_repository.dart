@@ -113,13 +113,23 @@ class SupabaseCommunityRepository implements CommunityRepository {
         final createdAt = latest == null
             ? null
             : SupabaseMappingUtils.dateTimeValue(latest, const ['created_at']);
+        final latestSenderUserId = latest == null
+            ? ''
+            : SupabaseMappingUtils.stringValue(latest, const [
+                'sender_user_id',
+              ]);
         final unread =
-            createdAt != null &&
+            latestSenderUserId.isNotEmpty &&
+                latestSenderUserId != userId &&
+                createdAt != null &&
                 (lastReadAt == null || createdAt.isAfter(lastReadAt))
             ? 1
             : 0;
         final otherUserId = otherUserByThread[threadId];
         final profile = otherUserId == null ? null : profilesById[otherUserId];
+        final username = profile == null
+            ? ''
+            : SupabaseMappingUtils.stringValue(profile, const ['username']);
         final displayName = profile == null
             ? 'Conversation'
             : SupabaseMappingUtils.stringValue(profile, const [
@@ -141,6 +151,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
             unreadCount: unread,
             otherUserId: otherUserId,
             otherUserAvatarUrl: avatarUrl,
+            otherUsername: username,
           ),
         );
       }
@@ -372,12 +383,18 @@ class SupabaseCommunityRepository implements CommunityRepository {
               'display_name',
               'username',
             ], fallback: 'User'),
+            username: SupabaseMappingUtils.stringValue(profile, const [
+              'username',
+            ]),
             relation: relation,
           ),
         );
       }
 
-      contacts.sort((a, b) => a.displayName.compareTo(b.displayName));
+      contacts.sort(
+        (a, b) =>
+            a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
+      );
       return contacts.take(80).toList();
     } on PostgrestException {
       return const [];

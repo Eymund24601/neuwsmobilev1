@@ -4,14 +4,20 @@
     {
       "name": "nEUws (Mock Data)",
       "request": "launch",
-      "type": "dart"
+      "type": "dart",
+      "toolArgs": [
+        "--web-hostname=localhost",
+        "--web-port=7357"
+      ]
     },
     {
       "name": "nEUws (Supabase Local)",
       "request": "launch",
       "type": "dart",
       "toolArgs": [
-        "--dart-define-from-file=.env/supabase.local.json"
+        "--dart-define-from-file=.env/supabase.local.json",
+        "--web-hostname=localhost",
+        "--web-port=7357"
       ]
     }
   ]

@@ -11,6 +11,7 @@ class MockCommunityRepository implements CommunityRepository {
       unreadCount: 1,
       otherUserId: 'u1',
       otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
+      otherUsername: 'MartaKeller',
     ),
     MessageThreadSummary(
       threadId: 't2',
@@ -20,6 +21,7 @@ class MockCommunityRepository implements CommunityRepository {
       unreadCount: 1,
       otherUserId: 'u3',
       otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
+      otherUsername: 'LeaNovak',
     ),
     MessageThreadSummary(
       threadId: 't3',
@@ -29,6 +31,7 @@ class MockCommunityRepository implements CommunityRepository {
       unreadCount: 0,
       otherUserId: 'u2',
       otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
+      otherUsername: 'MiguelSousa',
     ),
   ];
 
@@ -36,16 +39,19 @@ class MockCommunityRepository implements CommunityRepository {
     MessageContactSummary(
       userId: 'u1',
       displayName: 'Marta Keller',
+      username: 'MartaKeller',
       relation: 'Follows you',
     ),
     MessageContactSummary(
       userId: 'u2',
       displayName: 'Lukas Brenner',
+      username: 'LukasBrenner',
       relation: 'You follow each other',
     ),
     MessageContactSummary(
       userId: 'u3',
       displayName: 'Lea Novak',
+      username: 'LeaNovak',
       relation: 'Follows you',
     ),
   ];

@@ -29,19 +29,6 @@ class _YouPageState extends ConsumerState<YouPage> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      ref.read(profileProvider.notifier).refresh();
-      ref.read(messageThreadsProvider.notifier).refresh();
-      ref.read(messageContactsProvider.notifier).refresh();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);

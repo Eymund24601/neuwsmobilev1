@@ -15,10 +15,50 @@ import '../models/user_profile.dart';
 import '../repositories/creator_repository.dart';
 import '../repositories/settings_repository.dart';
 import '../services/cache/cache_service.dart';
+import '../services/performance/performance_budget.dart';
 import 'cache_providers.dart';
 import 'repository_providers.dart';
 
 final enableStartupPrefetchProvider = Provider<bool>((ref) => true);
+final aggressiveArticlePreloadLimitProvider = Provider<int>((ref) => 100);
+final startupPrefetchBudgetProvider = Provider<StartupPrefetchBudget>(
+  (ref) => const StartupPrefetchBudget(),
+);
+final startupPrefetchMetricsProvider = StateProvider<StartupPrefetchMetrics?>(
+  (ref) => null,
+);
+
+class StartupPrefetchBudget {
+  const StartupPrefetchBudget({
+    this.core = const Duration(milliseconds: 900),
+    this.userScoped = const Duration(milliseconds: 1100),
+    this.articleWarm = const Duration(milliseconds: 1800),
+    this.total = const Duration(milliseconds: 2600),
+  });
+
+  final Duration core;
+  final Duration userScoped;
+  final Duration articleWarm;
+  final Duration total;
+}
+
+class StartupPrefetchMetrics {
+  const StartupPrefetchMetrics({
+    required this.recordedAt,
+    required this.core,
+    required this.userScoped,
+    required this.articleWarm,
+    required this.total,
+    required this.hadUserScopedFetch,
+  });
+
+  final DateTime recordedAt;
+  final Duration core;
+  final Duration userScoped;
+  final Duration articleWarm;
+  final Duration total;
+  final bool hadUserScopedFetch;
+}
 
 abstract class CachedAsyncNotifier<T> extends AsyncNotifier<T> {
   String get cacheKey;
@@ -68,6 +108,27 @@ abstract class CachedAsyncNotifier<T> extends AsyncNotifier<T> {
   }
 }
 
+String _userCacheScope(Ref ref) {
+  if (ref.read(useMockDataProvider)) {
+    return 'mock';
+  }
+  final userId = ref.read(currentSupabaseUserIdProvider);
+  if (userId.isEmpty) {
+    return 'guest';
+  }
+  return userId;
+}
+
+abstract class UserScopedCachedAsyncNotifier<T> extends CachedAsyncNotifier<T> {
+  String get userCacheScope => _userCacheScope(ref);
+
+  @override
+  Future<T> build() async {
+    ref.watch(currentSupabaseUserIdProvider);
+    return super.build();
+  }
+}
+
 final topStoriesProvider =
     AsyncNotifierProvider<TopStoriesNotifier, List<ArticleSummary>>(
       TopStoriesNotifier.new,
@@ -102,6 +163,27 @@ final articleDetailBySlugProvider =
       ArticleDetail?,
       String
     >(ArticleDetailBySlugNotifier.new);
+
+final aggressiveArticleDetailsPreloadProvider = FutureProvider<void>((
+  ref,
+) async {
+  final limit = ref.read(aggressiveArticlePreloadLimitProvider);
+  final details = await ref
+      .read(articleRepositoryProvider)
+      .getRecentArticleDetails(limit: limit);
+  if (details.isEmpty) {
+    return;
+  }
+
+  final cache = await ref.read(cacheServiceProvider.future);
+  for (final detail in details) {
+    await cache.write<ArticleDetail?>(
+      'articleDetail:${detail.slug}:v1',
+      detail,
+      (value) => value?.toJson(),
+    );
+  }
+});
 
 class ArticleDetailBySlugNotifier
     extends FamilyAsyncNotifier<ArticleDetail?, String> {
@@ -167,9 +249,9 @@ final messageThreadsProvider =
     );
 
 class MessageThreadsNotifier
-    extends CachedAsyncNotifier<List<MessageThreadSummary>> {
+    extends UserScopedCachedAsyncNotifier<List<MessageThreadSummary>> {
   @override
-  String get cacheKey => 'messages:threads:v1';
+  String get cacheKey => 'messages:threads:$userCacheScope:v1';
 
   @override
   List<MessageThreadSummary> decodePayload(Object? payload) {
@@ -198,9 +280,9 @@ final messageContactsProvider =
     );
 
 class MessageContactsNotifier
-    extends CachedAsyncNotifier<List<MessageContactSummary>> {
+    extends UserScopedCachedAsyncNotifier<List<MessageContactSummary>> {
   @override
-  String get cacheKey => 'messages:contacts:v1';
+  String get cacheKey => 'messages:contacts:$userCacheScope:v1';
 
   @override
   List<MessageContactSummary> decodePayload(Object? payload) {
@@ -237,6 +319,7 @@ class MessageThreadMessagesNotifier
 
   @override
   Future<List<DirectMessage>> build(String threadId) async {
+    ref.watch(currentSupabaseUserIdProvider);
     _threadId = threadId;
     final cache = await ref.read(cacheServiceProvider.future);
     final key = _cacheKey(threadId);
@@ -304,7 +387,8 @@ class MessageThreadMessagesNotifier
     return fresh;
   }
 
-  String _cacheKey(String threadId) => 'messages:thread:$threadId:v1';
+  String _cacheKey(String threadId) =>
+      'messages:thread:${_userCacheScope(ref)}:$threadId:v1';
 }
 
 final savedArticlesProvider =
@@ -313,9 +397,9 @@ final savedArticlesProvider =
     );
 
 class SavedArticlesNotifier
-    extends CachedAsyncNotifier<List<SavedArticleSummary>> {
+    extends UserScopedCachedAsyncNotifier<List<SavedArticleSummary>> {
   @override
-  String get cacheKey => 'saved:articles:v1';
+  String get cacheKey => 'saved:articles:$userCacheScope:v1';
 
   @override
   List<SavedArticleSummary> decodePayload(Object? payload) {
@@ -344,9 +428,9 @@ final userCollectionsProvider =
     );
 
 class UserCollectionsNotifier
-    extends CachedAsyncNotifier<List<UserCollectionSummary>> {
+    extends UserScopedCachedAsyncNotifier<List<UserCollectionSummary>> {
   @override
-  String get cacheKey => 'user:collections:v1';
+  String get cacheKey => 'user:collections:$userCacheScope:v1';
 
   @override
   List<UserCollectionSummary> decodePayload(Object? payload) {
@@ -375,9 +459,10 @@ final userPerksProvider =
       UserPerksNotifier.new,
     );
 
-class UserPerksNotifier extends CachedAsyncNotifier<List<UserPerkSummary>> {
+class UserPerksNotifier
+    extends UserScopedCachedAsyncNotifier<List<UserPerkSummary>> {
   @override
-  String get cacheKey => 'user:perks:v1';
+  String get cacheKey => 'user:perks:$userCacheScope:v1';
 
   @override
   List<UserPerkSummary> decodePayload(Object? payload) {
@@ -404,9 +489,9 @@ final userProgressionProvider =
     );
 
 class UserProgressionNotifier
-    extends CachedAsyncNotifier<UserProgressionSummary?> {
+    extends UserScopedCachedAsyncNotifier<UserProgressionSummary?> {
   @override
-  String get cacheKey => 'user:progression:v1';
+  String get cacheKey => 'user:progression:$userCacheScope:v1';
 
   @override
   UserProgressionSummary? decodePayload(Object? payload) {
@@ -434,9 +519,9 @@ final repostedArticlesProvider =
     >(RepostedArticlesNotifier.new);
 
 class RepostedArticlesNotifier
-    extends CachedAsyncNotifier<List<RepostedArticleSummary>> {
+    extends UserScopedCachedAsyncNotifier<List<RepostedArticleSummary>> {
   @override
-  String get cacheKey => 'user:reposts:v1';
+  String get cacheKey => 'user:reposts:$userCacheScope:v1';
 
   @override
   List<RepostedArticleSummary> decodePayload(Object? payload) {
@@ -651,9 +736,9 @@ final profileProvider = AsyncNotifierProvider<ProfileNotifier, UserProfile>(
   ProfileNotifier.new,
 );
 
-class ProfileNotifier extends CachedAsyncNotifier<UserProfile> {
+class ProfileNotifier extends UserScopedCachedAsyncNotifier<UserProfile> {
   @override
-  String get cacheKey => 'profile:current:v1';
+  String get cacheKey => 'profile:current:$userCacheScope:v1';
 
   @override
   UserProfile decodePayload(Object? payload) {
@@ -675,9 +760,9 @@ final settingsProvider = AsyncNotifierProvider<SettingsNotifier, AppSettings>(
   SettingsNotifier.new,
 );
 
-class SettingsNotifier extends CachedAsyncNotifier<AppSettings> {
+class SettingsNotifier extends UserScopedCachedAsyncNotifier<AppSettings> {
   @override
-  String get cacheKey => 'settings:current:v1';
+  String get cacheKey => 'settings:current:$userCacheScope:v1';
 
   @override
   AppSettings decodePayload(Object? payload) {
@@ -716,9 +801,10 @@ final creatorStudioProvider =
       CreatorStudioNotifier.new,
     );
 
-class CreatorStudioNotifier extends CachedAsyncNotifier<CreatorStudioSnapshot> {
+class CreatorStudioNotifier
+    extends UserScopedCachedAsyncNotifier<CreatorStudioSnapshot> {
   @override
-  String get cacheKey => 'creatorStudio:current:v1';
+  String get cacheKey => 'creatorStudio:current:$userCacheScope:v1';
 
   @override
   CreatorStudioSnapshot decodePayload(Object? payload) {
@@ -906,44 +992,71 @@ class TopicFeedNotifier extends FamilyAsyncNotifier<TopicFeed, String> {
 }
 
 final startupPrefetchProvider = FutureProvider<void>((ref) async {
-  final topStories = await ref.read(topStoriesProvider.future);
-  final tracks = await ref.read(tracksProvider.future);
-  final events = await ref.read(eventsProvider.future);
-  await ref.read(profileProvider.future);
-  final categories = await ref.read(quizCategoriesProvider.future);
+  final budget = ref.read(startupPrefetchBudgetProvider);
+  final totalStopwatch = Stopwatch()..start();
+
+  final coreStopwatch = Stopwatch()..start();
+  await Future.wait([
+    ref.read(topStoriesProvider.future),
+    ref.read(tracksProvider.future),
+    ref.read(eventsProvider.future),
+    ref.read(quizCategoriesProvider.future),
+  ]);
+  coreStopwatch.stop();
+  PerformanceBudgetReporter.report(
+    key: 'startup.core',
+    elapsed: coreStopwatch.elapsed,
+    budget: budget.core,
+  );
 
   final shouldPrefetchUserScoped =
       ref.read(useMockDataProvider) || ref.read(hasSupabaseSessionProvider);
+  var userScopedElapsed = Duration.zero;
   if (shouldPrefetchUserScoped) {
+    final userScopedStopwatch = Stopwatch()..start();
     await Future.wait([
+      ref.read(profileProvider.future),
       ref.read(messageThreadsProvider.future),
       ref.read(savedArticlesProvider.future),
       ref.read(userPerksProvider.future),
       ref.read(userCollectionsProvider.future),
       ref.read(userProgressionProvider.future),
     ]);
-  }
-
-  if (topStories.isNotEmpty) {
-    unawaited(
-      ref.read(articleDetailBySlugProvider(topStories.first.slug).future),
+    userScopedStopwatch.stop();
+    userScopedElapsed = userScopedStopwatch.elapsed;
+    PerformanceBudgetReporter.report(
+      key: 'startup.userScoped',
+      elapsed: userScopedElapsed,
+      budget: budget.userScoped,
     );
   }
 
-  if (tracks.isNotEmpty) {
-    unawaited(ref.read(trackModulesProvider(tracks.first.id).future));
-  }
-  if (events.isNotEmpty) {
-    unawaited(ref.read(eventDetailProvider(events.first.id).future));
-  }
-  if (categories.isNotEmpty) {
-    final quizzes = await ref
-        .read(gamesRepositoryProvider)
-        .getQuizzesByCategory(categories.first);
-    if (quizzes.isNotEmpty) {
-      unawaited(ref.read(quizByIdProvider(quizzes.first.id).future));
-    }
-  }
+  final articleWarmStopwatch = Stopwatch()..start();
+  await ref.read(aggressiveArticleDetailsPreloadProvider.future);
+  articleWarmStopwatch.stop();
+  PerformanceBudgetReporter.report(
+    key: 'startup.articleWarm',
+    elapsed: articleWarmStopwatch.elapsed,
+    budget: budget.articleWarm,
+  );
+
+  totalStopwatch.stop();
+  final totalElapsed = totalStopwatch.elapsed;
+  PerformanceBudgetReporter.report(
+    key: 'startup.total',
+    elapsed: totalElapsed,
+    budget: budget.total,
+  );
+  ref
+      .read(startupPrefetchMetricsProvider.notifier)
+      .state = StartupPrefetchMetrics(
+    recordedAt: DateTime.now(),
+    core: coreStopwatch.elapsed,
+    userScoped: userScopedElapsed,
+    articleWarm: articleWarmStopwatch.elapsed,
+    total: totalElapsed,
+    hadUserScopedFetch: shouldPrefetchUserScoped,
+  );
 
   unawaited(ref.read(sudokuSkillRoundsProvider.future));
   unawaited(ref.read(eurodleRoundProvider.future));

@@ -177,7 +177,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             decoration: const InputDecoration(
                               labelText: 'Username',
                               helperText:
-                                  '3-24 chars, letters/numbers/underscore',
+                                  '3-24 chars, letters/numbers/underscore (caps allowed)',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -674,11 +674,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   String _normalizeUsername(String value) {
-    final lower = value.trim().toLowerCase();
-    if (lower.isEmpty) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
       return '';
     }
-    final normalized = lower.replaceAll(RegExp(r'[^a-z0-9_]'), '_');
+    final normalized = trimmed.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '_');
     final squashed = normalized.replaceAll(RegExp(r'_+'), '_');
     return squashed.replaceAll(RegExp(r'^_+|_+$'), '');
   }

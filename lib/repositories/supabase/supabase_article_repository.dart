@@ -288,12 +288,39 @@ class SupabaseArticleRepository implements ArticleRepository {
         .select('*')
         .eq('is_published', true)
         .order('published_at', ascending: false)
-        .limit(25);
+        .limit(100);
 
     return rows
         .map<ArticleSummary>(
           (dynamic row) => _mapSummary(row as Map<String, dynamic>),
         )
+        .toList();
+  }
+
+  @override
+  Future<List<ArticleDetail>> getRecentArticleDetails({int limit = 100}) async {
+    List<dynamic> rows;
+    try {
+      rows = await _client
+          .from('articles')
+          .select('*, profiles:author_id(display_name, city, country_code)')
+          .eq('is_published', true)
+          .order('published_at', ascending: false)
+          .limit(limit);
+    } on PostgrestException {
+      rows = await _client
+          .from('articles')
+          .select('*')
+          .eq('is_published', true)
+          .order('published_at', ascending: false)
+          .limit(limit);
+    }
+
+    return rows
+        .map<ArticleDetail>(
+          (dynamic row) => _mapDetail(row as Map<String, dynamic>),
+        )
+        .where((detail) => detail.slug.isNotEmpty)
         .toList();
   }
 

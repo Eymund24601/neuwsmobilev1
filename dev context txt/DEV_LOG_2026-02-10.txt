@@ -109,3 +109,98 @@ Session Focus: Hosted Supabase enablement + robust rich seed + profile/settings 
 1. Add optimistic local append when sending messages (before refresh round-trip).
 2. Add thread pagination/cursor loading for long histories.
 3. Add fallback UX for starting new DM when RPC is unavailable.
+
+==================================================
+10) Performance + Smoothness Follow-Up (Same Date Addendum)
+==================================================
+Session Focus: Aggressive preload (prediction-free) + stronger local cache backend + duplicate refresh reduction + startup perf budget instrumentation.
+
+Business direction locked:
+- keep app-feel instant with deterministic preload
+- avoid "guess user intent" logic for article navigation
+- keep realtime messaging intact while cutting duplicate refresh work
+
+Implemented:
+- Aggressive article preload:
+  - article repository contract expanded with `getRecentArticleDetails(limit)`
+  - startup path warms article detail cache for up to 100 recent stories
+  - top stories fetch size aligned to 100
+- Stronger local cache backend:
+  - added `hive_flutter`
+  - cache persistence moved to Hive box `neuws_cache_v2`
+  - legacy SharedPreferences read compatibility + migration-on-read kept
+  - widget-test-safe behavior preserved via test-environment fallback path
+- Duplicate refresh reduction:
+  - removed page-init manual refreshes that duplicated provider boot refreshes
+  - inbox realtime no longer refreshes contacts list on every DM insert
+  - thread realtime sync removed redundant inbox refresh call
+- Startup performance budget pass:
+  - added budget model and debug reporter for startup preload phases
+  - tracked phases:
+    - `startup.core`
+    - `startup.userScoped`
+    - `startup.articleWarm`
+    - `startup.total`
+  - latest sample stored in provider state (`startupPrefetchMetricsProvider`)
+- Auth/profile cache hardening:
+  - root cause observed: generic profile cache key could retain guest/default profile payload after auth transition
+  - fix: user-scoped cache keys and auth-aware provider rebuild using current Supabase user id
+  - added `currentSupabaseUserIdProvider` and `UserScopedCachedAsyncNotifier`
+  - moved profile preload out of unauthenticated core startup phase into user-scoped phase only
+
+Files added:
+- `docs/performance_preload_strategy.md`
+- `lib/services/performance/performance_budget.dart`
+
+Primary files updated:
+- `lib/providers/feature_data_providers.dart`
+- `lib/services/cache/cache_service.dart`
+- `lib/providers/cache_providers.dart`
+- `lib/repositories/article_repository.dart`
+- `lib/repositories/supabase/supabase_article_repository.dart`
+- `lib/repositories/mock/mock_article_repository.dart`
+- `lib/screens/messages_page.dart`
+- `lib/screens/message_thread_page.dart`
+- `lib/screens/you_page.dart`
+- `pubspec.yaml`
+- `README.md`
+
+Validation:
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+
+Important guarantees preserved:
+- DM realtime subscriptions are still active for inbox and thread views.
+- This work removed duplicate refresh calls only; it did not remove live messaging listeners.
+
+Explicitly not covered in this addendum:
+1. Image binary prefetch policy (thumbnail/full asset strategy).
+2. Cache eviction policy (size/LRU limits).
+3. Games-specific preload tuning beyond existing rounds preload.
+4. Message pagination/cursor loading.
+5. Full offline-first local data store (queryable feed tables).
+
+==================================================
+11) UX/Auth + Creator Compatibility Follow-Up (Same Date Addendum)
+==================================================
+Implemented:
+- Inbox unread fix: own sent messages no longer mark thread as unread.
+- Drawer layout fix: removed scroll dependency; all major actions (including Sign In) stay visible.
+- Username behavior fix:
+  - profile save now preserves capital letters in usernames
+  - messages/contact search matches usernames case-insensitively
+- Auth transition sync:
+  - app shell now invalidates + warms key user-scoped providers on auth change
+  - sign-in page adds short stabilization prefetch so You/Messages/Drawer update together
+- Creator Studio compatibility fix:
+  - fallback when `profiles.estimated_earnings` is missing; page still loads with `EUR 0`
+
+Dev runtime note:
+- For Edge web session persistence while using Supabase, run with fixed localhost host+port.
+
+Validation:
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+
+TODO:
+1. Add additive migration for `profiles.estimated_earnings` (optional, not blocking UI now).

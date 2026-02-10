@@ -57,6 +57,14 @@ final currentSupabaseUserEmailProvider = Provider<String>((ref) {
   return Supabase.instance.client.auth.currentUser?.email ?? '';
 });
 
+final currentSupabaseUserIdProvider = Provider<String>((ref) {
+  if (!SupabaseBootstrap.isConfigured || !SupabaseBootstrap.isInitialized) {
+    return '';
+  }
+  ref.watch(supabaseAuthStateProvider);
+  return Supabase.instance.client.auth.currentUser?.id ?? '';
+});
+
 final articleRepositoryProvider = Provider<ArticleRepository>((ref) {
   if (ref.watch(useMockDataProvider)) {
     return MockArticleRepository();

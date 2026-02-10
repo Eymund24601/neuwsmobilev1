@@ -6,6 +6,7 @@ import '../models/vocab_models.dart';
 
 abstract class ArticleRepository {
   Future<List<ArticleSummary>> getTopStories();
+  Future<List<ArticleDetail>> getRecentArticleDetails({int limit = 100});
   Future<TopicFeed> getTopicFeed(String topicOrCountryCode);
   Future<ArticleDetail?> getArticleDetailBySlug(String slug);
   Future<ArticleBundle?> getArticleBundleBySlug(

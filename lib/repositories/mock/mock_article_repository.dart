@@ -167,6 +167,12 @@ class MockArticleRepository implements ArticleRepository {
   }
 
   @override
+  Future<List<ArticleDetail>> getRecentArticleDetails({int limit = 100}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    return _details.take(limit).toList();
+  }
+
+  @override
   Future<ArticleBundle?> getArticleBundleBySlug(
     String slug,
     String topLang,
