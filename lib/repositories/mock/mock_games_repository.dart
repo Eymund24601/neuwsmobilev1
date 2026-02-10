@@ -124,6 +124,16 @@ class MockGamesRepository implements GamesRepository {
   }
 
   @override
+  Future<void> submitQuizAttempt({
+    required String quizId,
+    required int score,
+    required int maxScore,
+    required Duration duration,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+  }
+
+  @override
   Future<EurodleRound?> getActiveEurodleRound() async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     return _eurodleRound;

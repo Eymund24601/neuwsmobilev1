@@ -5,6 +5,8 @@ class MessageThreadSummary {
     required this.preview,
     required this.timeLabel,
     required this.unreadCount,
+    this.otherUserId,
+    this.otherUserAvatarUrl,
   });
 
   final String threadId;
@@ -12,6 +14,8 @@ class MessageThreadSummary {
   final String preview;
   final String timeLabel;
   final int unreadCount;
+  final String? otherUserId;
+  final String? otherUserAvatarUrl;
 
   factory MessageThreadSummary.fromJson(Map<String, dynamic> json) {
     return MessageThreadSummary(
@@ -20,6 +24,8 @@ class MessageThreadSummary {
       preview: json['preview'] as String,
       timeLabel: json['timeLabel'] as String,
       unreadCount: json['unreadCount'] as int? ?? 0,
+      otherUserId: json['otherUserId'] as String?,
+      otherUserAvatarUrl: json['otherUserAvatarUrl'] as String?,
     );
   }
 
@@ -30,6 +36,58 @@ class MessageThreadSummary {
       'preview': preview,
       'timeLabel': timeLabel,
       'unreadCount': unreadCount,
+      'otherUserId': otherUserId,
+      'otherUserAvatarUrl': otherUserAvatarUrl,
+    };
+  }
+}
+
+class DirectMessage {
+  const DirectMessage({
+    required this.id,
+    required this.threadId,
+    required this.senderUserId,
+    required this.senderDisplayName,
+    required this.senderAvatarUrl,
+    required this.body,
+    required this.createdAtIso,
+    required this.isMine,
+  });
+
+  final String id;
+  final String threadId;
+  final String senderUserId;
+  final String senderDisplayName;
+  final String senderAvatarUrl;
+  final String body;
+  final String createdAtIso;
+  final bool isMine;
+
+  DateTime? get createdAt => DateTime.tryParse(createdAtIso);
+
+  factory DirectMessage.fromJson(Map<String, dynamic> json) {
+    return DirectMessage(
+      id: json['id'] as String,
+      threadId: json['threadId'] as String,
+      senderUserId: json['senderUserId'] as String,
+      senderDisplayName: json['senderDisplayName'] as String,
+      senderAvatarUrl: json['senderAvatarUrl'] as String? ?? '',
+      body: json['body'] as String,
+      createdAtIso: json['createdAtIso'] as String,
+      isMine: json['isMine'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'threadId': threadId,
+      'senderUserId': senderUserId,
+      'senderDisplayName': senderDisplayName,
+      'senderAvatarUrl': senderAvatarUrl,
+      'body': body,
+      'createdAtIso': createdAtIso,
+      'isMine': isMine,
     };
   }
 }

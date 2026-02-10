@@ -1,13 +1,35 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../app/app_routes.dart';
 import '../data/mock_data.dart';
 import '../theme/app_theme.dart';
+import '../widgets/adaptive_image.dart';
+
+class ArticleVocabPair {
+  const ArticleVocabPair({
+    required this.label,
+    required this.topText,
+    required this.bottomText,
+  });
+
+  final String label;
+  final String topText;
+  final String bottomText;
+}
 
 class ArticlePage extends StatefulWidget {
-  const ArticlePage({super.key, required this.article});
+  const ArticlePage({
+    super.key,
+    required this.article,
+    this.vocabPairs = const [],
+    this.onCollectWords,
+  });
 
   final ArticleContent article;
+  final List<ArticleVocabPair> vocabPairs;
+  final Future<void> Function()? onCollectWords;
 
   @override
   State<ArticlePage> createState() => _ArticlePageState();
@@ -17,6 +39,8 @@ class _ArticlePageState extends State<ArticlePage> {
   final ScrollController _controller = ScrollController();
   bool _splitActive = false;
   bool _polyglotEnabled = true;
+  bool _collecting = false;
+  int? _selectedPairIndex;
   late String _languageTop;
   late String _languageBottom;
 
@@ -36,6 +60,7 @@ class _ArticlePageState extends State<ArticlePage> {
     _controller.addListener(_handleScroll);
     _languageTop = _cleanLanguage(widget.article.languageTop);
     _languageBottom = _cleanLanguage(widget.article.languageBottom);
+    _selectedPairIndex = widget.vocabPairs.isEmpty ? null : 0;
   }
 
   @override
@@ -47,6 +72,14 @@ class _ArticlePageState extends State<ArticlePage> {
 
   String _cleanLanguage(String value) {
     return value.replaceAll('Learning:', '').replaceAll('Native:', '').trim();
+  }
+
+  ArticleVocabPair? get _selectedPair {
+    final index = _selectedPairIndex;
+    if (index == null || index < 0 || index >= widget.vocabPairs.length) {
+      return null;
+    }
+    return widget.vocabPairs[index];
   }
 
   void _handleScroll() {
@@ -78,6 +111,40 @@ class _ArticlePageState extends State<ArticlePage> {
 
   void _setBottomLanguage(String value) {
     setState(() => _languageBottom = value);
+  }
+
+  Future<void> _collectWords() async {
+    if (_collecting || widget.onCollectWords == null) {
+      return;
+    }
+
+    setState(() => _collecting = true);
+    try {
+      await widget.onCollectWords!.call();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Words collected and saved to your profile.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = '$error';
+      if (message.toLowerCase().contains('sign in required')) {
+        context.pushNamed(AppRouteName.signIn);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not collect words: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _collecting = false);
+      }
+    }
   }
 
   @override
@@ -118,16 +185,16 @@ class _ArticlePageState extends State<ArticlePage> {
               child: Text(
                 article.title,
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontSize: 34,
-                      height: 1.1,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                  fontSize: 34,
+                  height: 1.1,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ),
           ),
           SliverToBoxAdapter(
-            child: Image.asset(
-              article.imageAsset,
+            child: AdaptiveImage(
+              source: article.imageAsset,
               height: 250,
               width: double.infinity,
               fit: BoxFit.cover,
@@ -139,9 +206,9 @@ class _ArticlePageState extends State<ArticlePage> {
               child: Text(
                 article.excerpt,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      height: 1.35,
-                      color: palette.muted,
-                    ),
+                  height: 1.35,
+                  color: palette.muted,
+                ),
               ),
             ),
           ),
@@ -162,7 +229,9 @@ class _ArticlePageState extends State<ArticlePage> {
                             children: [
                               const CircleAvatar(
                                 radius: 18,
-                                backgroundImage: AssetImage('assets/images/placeholder-user.jpg'),
+                                backgroundImage: AssetImage(
+                                  'assets/images/placeholder-user.jpg',
+                                ),
                               ),
                               const SizedBox(width: 10),
                               Column(
@@ -170,13 +239,14 @@ class _ArticlePageState extends State<ArticlePage> {
                                 children: [
                                   Text(
                                     article.authorName,
-                                    style: Theme.of(context).textTheme.titleMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
                                   ),
                                   Text(
                                     article.authorLocation,
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: palette.muted,
-                                        ),
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: palette.muted),
                                   ),
                                 ],
                               ),
@@ -185,7 +255,10 @@ class _ArticlePageState extends State<ArticlePage> {
                         ),
                         const SizedBox(height: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: palette.surfaceCard,
                             borderRadius: BorderRadius.circular(12),
@@ -193,9 +266,8 @@ class _ArticlePageState extends State<ArticlePage> {
                           ),
                           child: Text(
                             article.topic,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: palette.muted,
-                                ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: palette.muted),
                           ),
                         ),
                       ],
@@ -227,12 +299,34 @@ class _ArticlePageState extends State<ArticlePage> {
               child: Text(
                 article.date,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: palette.muted,
-                      letterSpacing: 1.1,
-                    ),
+                  color: palette.muted,
+                  letterSpacing: 1.1,
+                ),
               ),
             ),
           ),
+          if (widget.vocabPairs.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (var i = 0; i < widget.vocabPairs.length; i++)
+                      FilterChip(
+                        selected: _selectedPairIndex == i,
+                        onSelected: (selected) {
+                          setState(() {
+                            _selectedPairIndex = selected ? i : null;
+                          });
+                        },
+                        label: Text(widget.vocabPairs[i].label),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
@@ -241,6 +335,8 @@ class _ArticlePageState extends State<ArticlePage> {
                 polyglotEnabled: _polyglotEnabled,
                 bodyTop: article.bodyTop,
                 bodyBottom: article.bodyBottom,
+                highlightTopTerm: _selectedPair?.topText ?? '',
+                highlightBottomTerm: _selectedPair?.bottomText ?? '',
               ),
             ),
           ),
@@ -261,7 +357,9 @@ class _ArticlePageState extends State<ArticlePage> {
                         children: [
                           const CircleAvatar(
                             radius: 16,
-                            backgroundImage: AssetImage('assets/images/placeholder-user.jpg'),
+                            backgroundImage: AssetImage(
+                              'assets/images/placeholder-user.jpg',
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -281,10 +379,12 @@ class _ArticlePageState extends State<ArticlePage> {
                   ),
                   const SizedBox(width: 12),
                   FilledButton(
-                    onPressed: () {
-                      // TODO: Connect Collect Words to Learn word-practice flow for this article.
-                    },
-                    child: const Text('Collect Words'),
+                    onPressed: widget.onCollectWords == null || _collecting
+                        ? null
+                        : _collectWords,
+                    child: Text(
+                      _collecting ? 'Collecting...' : 'Collect Words',
+                    ),
                   ),
                 ],
               ),
@@ -378,12 +478,7 @@ class _LanguageFlag extends StatelessWidget {
     return PopupMenuButton<String>(
       onSelected: onSelected,
       itemBuilder: (context) => options
-          .map(
-            (option) => PopupMenuItem(
-              value: option,
-              child: Text(option),
-            ),
-          )
+          .map((option) => PopupMenuItem(value: option, child: Text(option)))
           .toList(),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -394,9 +489,9 @@ class _LanguageFlag extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -409,17 +504,22 @@ class _PolyglotReader extends StatelessWidget {
     required this.polyglotEnabled,
     required this.bodyTop,
     required this.bodyBottom,
+    required this.highlightTopTerm,
+    required this.highlightBottomTerm,
   });
 
   final bool splitActive;
   final bool polyglotEnabled;
   final String bodyTop;
   final String bodyBottom;
+  final String highlightTopTerm;
+  final String highlightBottomTerm;
 
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.of(context);
-    final immersiveHeight = screen.size.height - kToolbarHeight - screen.padding.top - 8;
+    final immersiveHeight =
+        screen.size.height - kToolbarHeight - screen.padding.top - 8;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
@@ -437,18 +537,22 @@ class _PolyglotReader extends StatelessWidget {
         },
         child: polyglotEnabled
             ? (splitActive
-                ? _SplitReader(
-                    key: const ValueKey('split'),
-                    bodyTop: bodyTop,
-                    bodyBottom: bodyBottom,
-                  )
-                : _SingleReader(
-                    key: const ValueKey('single'),
-                    body: bodyTop,
-                  ))
+                  ? _SplitReader(
+                      key: const ValueKey('split'),
+                      bodyTop: bodyTop,
+                      bodyBottom: bodyBottom,
+                      topHighlightTerm: highlightTopTerm,
+                      bottomHighlightTerm: highlightBottomTerm,
+                    )
+                  : _SingleReader(
+                      key: const ValueKey('single'),
+                      body: bodyTop,
+                      highlightTerm: highlightTopTerm,
+                    ))
             : _SingleReader(
                 key: const ValueKey('single-off'),
                 body: bodyBottom,
+                highlightTerm: highlightBottomTerm,
               ),
       ),
     );
@@ -456,20 +560,28 @@ class _PolyglotReader extends StatelessWidget {
 }
 
 class _SingleReader extends StatelessWidget {
-  const _SingleReader({super.key, required this.body});
+  const _SingleReader({
+    super.key,
+    required this.body,
+    required this.highlightTerm,
+  });
 
   final String body;
+  final String highlightTerm;
 
   @override
   Widget build(BuildContext context) {
+    final style = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(fontSize: 20, height: 1.62);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Text(
-        body,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontSize: 20,
-              height: 1.62,
-            ),
+      child: _buildHighlightedParagraph(
+        context,
+        text: body,
+        highlightTerm: highlightTerm,
+        style: style,
       ),
     );
   }
@@ -480,10 +592,14 @@ class _SplitReader extends StatefulWidget {
     super.key,
     required this.bodyTop,
     required this.bodyBottom,
+    required this.topHighlightTerm,
+    required this.bottomHighlightTerm,
   });
 
   final String bodyTop;
   final String bodyBottom;
+  final String topHighlightTerm;
+  final String bottomHighlightTerm;
 
   @override
   State<_SplitReader> createState() => _SplitReaderState();
@@ -497,8 +613,12 @@ class _SplitReaderState extends State<_SplitReader> {
   @override
   void initState() {
     super.initState();
-    _topController.addListener(() => _syncScroll(_topController, _bottomController));
-    _bottomController.addListener(() => _syncScroll(_bottomController, _topController));
+    _topController.addListener(
+      () => _syncScroll(_topController, _bottomController),
+    );
+    _bottomController.addListener(
+      () => _syncScroll(_bottomController, _topController),
+    );
   }
 
   @override
@@ -514,7 +634,9 @@ class _SplitReaderState extends State<_SplitReader> {
     }
     final maxFrom = from.position.maxScrollExtent;
     final maxTo = to.position.maxScrollExtent;
-    final percent = maxFrom <= 0 ? 0.0 : (from.offset / maxFrom).clamp(0.0, 1.0);
+    final percent = maxFrom <= 0
+        ? 0.0
+        : (from.offset / maxFrom).clamp(0.0, 1.0);
     final target = maxTo * percent;
 
     _syncing = true;
@@ -525,20 +647,21 @@ class _SplitReaderState extends State<_SplitReader> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    final style = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(fontSize: 20, height: 1.62);
 
-    // TODO: Map word pairs across languages and highlight both on tap.
     return Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
             controller: _topController,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              widget.bodyTop,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontSize: 20,
-                    height: 1.62,
-                  ),
+            child: _buildHighlightedParagraph(
+              context,
+              text: widget.bodyTop,
+              highlightTerm: widget.topHighlightTerm,
+              style: style,
             ),
           ),
         ),
@@ -550,16 +673,57 @@ class _SplitReaderState extends State<_SplitReader> {
           child: SingleChildScrollView(
             controller: _bottomController,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              widget.bodyBottom,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontSize: 20,
-                    height: 1.62,
-                  ),
+            child: _buildHighlightedParagraph(
+              context,
+              text: widget.bodyBottom,
+              highlightTerm: widget.bottomHighlightTerm,
+              style: style,
             ),
           ),
         ),
       ],
     );
   }
+}
+
+Widget _buildHighlightedParagraph(
+  BuildContext context, {
+  required String text,
+  required String highlightTerm,
+  required TextStyle? style,
+}) {
+  if (highlightTerm.trim().isEmpty || style == null) {
+    return Text(text, style: style);
+  }
+
+  final expression = RegExp(RegExp.escape(highlightTerm), caseSensitive: false);
+  final matches = expression.allMatches(text).toList();
+  if (matches.isEmpty) {
+    return Text(text, style: style);
+  }
+
+  final highlightColor = Theme.of(
+    context,
+  ).colorScheme.primary.withValues(alpha: 0.2);
+  final spans = <TextSpan>[];
+  var cursor = 0;
+  for (final match in matches) {
+    if (match.start > cursor) {
+      spans.add(
+        TextSpan(text: text.substring(cursor, match.start), style: style),
+      );
+    }
+    spans.add(
+      TextSpan(
+        text: text.substring(match.start, match.end),
+        style: style.copyWith(backgroundColor: highlightColor),
+      ),
+    );
+    cursor = match.end;
+  }
+  if (cursor < text.length) {
+    spans.add(TextSpan(text: text.substring(cursor), style: style));
+  }
+
+  return RichText(text: TextSpan(children: spans));
 }

@@ -2,6 +2,7 @@ import '../models/article_detail.dart';
 import '../models/article_summary.dart';
 import '../models/article_bundle.dart';
 import '../models/topic_feed.dart';
+import '../models/vocab_models.dart';
 
 abstract class ArticleRepository {
   Future<List<ArticleSummary>> getTopStories();
@@ -13,4 +14,8 @@ abstract class ArticleRepository {
     String bottomLang,
     String uiLang,
   );
+  Future<void> collectFocusVocab({
+    required String articleId,
+    required List<FocusVocabItem> items,
+  });
 }

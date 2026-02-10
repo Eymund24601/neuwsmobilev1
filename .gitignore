@@ -46,3 +46,5 @@ app.*.map.json
 
 # Local runtime secrets (keep examples in repo)
 .env/supabase.local.json
+.env/supabase.remote.ps1
+.env/supabase.remote.json

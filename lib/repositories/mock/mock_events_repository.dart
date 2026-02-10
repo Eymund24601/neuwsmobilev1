@@ -71,4 +71,9 @@ class MockEventsRepository implements EventsRepository {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     return _events;
   }
+
+  @override
+  Future<void> registerForEvent(String eventId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+  }
 }

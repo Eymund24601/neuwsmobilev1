@@ -12,4 +12,9 @@ class CreatorStudioSnapshot {
 
 abstract class CreatorRepository {
   Future<CreatorStudioSnapshot> getStudioSnapshot();
+  Future<void> saveDraft({
+    required String headline,
+    required String topic,
+    required String body,
+  });
 }

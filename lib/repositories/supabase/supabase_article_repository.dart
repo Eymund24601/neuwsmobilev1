@@ -297,6 +297,81 @@ class SupabaseArticleRepository implements ArticleRepository {
         .toList();
   }
 
+  @override
+  Future<void> collectFocusVocab({
+    required String articleId,
+    required List<FocusVocabItem> items,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Sign in required to collect words.');
+    }
+
+    final vocabItemIds = items
+        .map((item) => item.item.id)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (vocabItemIds.isEmpty) {
+      return;
+    }
+
+    try {
+      final now = DateTime.now();
+      final eventRows = vocabItemIds
+          .map(
+            (vocabItemId) => <String, dynamic>{
+              'user_id': userId,
+              'vocab_item_id': vocabItemId,
+              'article_id': articleId,
+              'event_type': 'collect',
+              'occurred_at': now.toIso8601String(),
+              'meta_json': {'source': 'article_collect_words'},
+            },
+          )
+          .toList();
+      await _client.from('user_vocab_events').insert(eventRows);
+
+      final existingRows = await _client
+          .from('user_vocab_progress')
+          .select('vocab_item_id,xp')
+          .eq('user_id', userId)
+          .inFilter('vocab_item_id', vocabItemIds);
+      final existingXpByItemId = <String, int>{};
+      for (final dynamic row in existingRows) {
+        final map = row as Map<String, dynamic>;
+        final vocabItemId = SupabaseMappingUtils.stringValue(map, const [
+          'vocab_item_id',
+        ]);
+        if (vocabItemId.isEmpty) {
+          continue;
+        }
+        existingXpByItemId[vocabItemId] = SupabaseMappingUtils.intValue(
+          map,
+          const ['xp'],
+          fallback: 0,
+        );
+      }
+
+      final progressRows = vocabItemIds.map((vocabItemId) {
+        final nextXp = (existingXpByItemId[vocabItemId] ?? 0) + 10;
+        return <String, dynamic>{
+          'user_id': userId,
+          'vocab_item_id': vocabItemId,
+          'xp': nextXp,
+          'level': _vocabLevelForXp(nextXp),
+          'last_seen_at': now.toIso8601String(),
+          'next_review_at': now.add(const Duration(days: 3)).toIso8601String(),
+        };
+      }).toList();
+      await _client
+          .from('user_vocab_progress')
+          .upsert(progressRows, onConflict: 'user_id,vocab_item_id');
+    } on PostgrestException catch (error) {
+      throw StateError('Could not collect words: ${error.message}');
+    }
+  }
+
   ArticleSummary _mapSummary(Map<String, dynamic> row) {
     final topic = _topicLabel(row);
     final countryCode = _countryCodeLabel(row);
@@ -689,5 +764,15 @@ class SupabaseArticleRepository implements ArticleRepository {
       }
     }
     return false;
+  }
+
+  String _vocabLevelForXp(int xp) {
+    if (xp >= 120) {
+      return 'gold';
+    }
+    if (xp >= 60) {
+      return 'silver';
+    }
+    return 'bronze';
   }
 }

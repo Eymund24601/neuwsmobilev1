@@ -9,6 +9,8 @@ class MockCommunityRepository implements CommunityRepository {
       preview: 'New message',
       timeLabel: '2h',
       unreadCount: 1,
+      otherUserId: 'u1',
+      otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
     ),
     MessageThreadSummary(
       threadId: 't2',
@@ -16,6 +18,8 @@ class MockCommunityRepository implements CommunityRepository {
       preview: 'Can we publish this thread tonight?',
       timeLabel: '1d',
       unreadCount: 1,
+      otherUserId: 'u3',
+      otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
     ),
     MessageThreadSummary(
       threadId: 't3',
@@ -23,6 +27,8 @@ class MockCommunityRepository implements CommunityRepository {
       preview: 'Sent 5h ago',
       timeLabel: '5h',
       unreadCount: 0,
+      otherUserId: 'u2',
+      otherUserAvatarUrl: 'assets/images/placeholder-user.jpg',
     ),
   ];
 
@@ -43,6 +49,65 @@ class MockCommunityRepository implements CommunityRepository {
       relation: 'Follows you',
     ),
   ];
+
+  static const _threadMessages = {
+    't1': [
+      DirectMessage(
+        id: 't1-m1',
+        threadId: 't1',
+        senderUserId: 'u1',
+        senderDisplayName: 'Marta Keller',
+        senderAvatarUrl: 'assets/images/placeholder-user.jpg',
+        body: 'Hey, did you see the final version?',
+        createdAtIso: '2026-02-10T08:40:00Z',
+        isMine: false,
+      ),
+      DirectMessage(
+        id: 't1-m2',
+        threadId: 't1',
+        senderUserId: 'me',
+        senderDisplayName: 'You',
+        senderAvatarUrl: 'assets/images/placeholder-user.jpg',
+        body: 'Yes, looks good. I will publish this afternoon.',
+        createdAtIso: '2026-02-10T09:05:00Z',
+        isMine: true,
+      ),
+    ],
+    't2': [
+      DirectMessage(
+        id: 't2-m1',
+        threadId: 't2',
+        senderUserId: 'u3',
+        senderDisplayName: 'Lea Novak',
+        senderAvatarUrl: 'assets/images/placeholder-user.jpg',
+        body: 'Can we publish this thread tonight?',
+        createdAtIso: '2026-02-09T18:10:00Z',
+        isMine: false,
+      ),
+      DirectMessage(
+        id: 't2-m2',
+        threadId: 't2',
+        senderUserId: 'me',
+        senderDisplayName: 'You',
+        senderAvatarUrl: 'assets/images/placeholder-user.jpg',
+        body: 'Yes, let us schedule for 21:00 CET.',
+        createdAtIso: '2026-02-09T18:20:00Z',
+        isMine: true,
+      ),
+    ],
+    't3': [
+      DirectMessage(
+        id: 't3-m1',
+        threadId: 't3',
+        senderUserId: 'u2',
+        senderDisplayName: 'Miguel Sousa',
+        senderAvatarUrl: 'assets/images/placeholder-user.jpg',
+        body: 'Thanks for the feedback on the Porto piece.',
+        createdAtIso: '2026-02-10T05:20:00Z',
+        isMine: false,
+      ),
+    ],
+  };
 
   static const _saved = [
     SavedArticleSummary(
@@ -118,6 +183,36 @@ class MockCommunityRepository implements CommunityRepository {
   Future<List<MessageThreadSummary>> getMessageThreads() async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     return _threads;
+  }
+
+  @override
+  Future<List<DirectMessage>> getThreadMessages(String threadId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    return List<DirectMessage>.from(_threadMessages[threadId] ?? const []);
+  }
+
+  @override
+  Future<void> sendThreadMessage({
+    required String threadId,
+    required String body,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+  }
+
+  @override
+  Future<String?> createOrGetDmThread(String otherUserId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    for (final thread in _threads) {
+      if (thread.otherUserId == otherUserId) {
+        return thread.threadId;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<void> markThreadRead(String threadId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 50));
   }
 
   @override

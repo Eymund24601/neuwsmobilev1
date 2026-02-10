@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../repositories/article_repository.dart';
 import '../repositories/community_repository.dart';
@@ -29,6 +30,32 @@ import '../services/supabase/supabase_bootstrap.dart';
 final useMockDataProvider = Provider<bool>(
   (ref) => !SupabaseBootstrap.isConfigured,
 );
+
+final supabaseAuthStateProvider = StreamProvider<AuthState?>((ref) {
+  if (!SupabaseBootstrap.isConfigured || !SupabaseBootstrap.isInitialized) {
+    return Stream<AuthState?>.value(null);
+  }
+  return Supabase.instance.client.auth.onAuthStateChange;
+});
+
+final hasSupabaseSessionProvider = Provider<bool>((ref) {
+  if (!SupabaseBootstrap.isConfigured || !SupabaseBootstrap.isInitialized) {
+    return false;
+  }
+  final authState = ref.watch(supabaseAuthStateProvider).valueOrNull;
+  if (authState != null) {
+    return authState.session != null;
+  }
+  return Supabase.instance.client.auth.currentSession != null;
+});
+
+final currentSupabaseUserEmailProvider = Provider<String>((ref) {
+  if (!SupabaseBootstrap.isConfigured || !SupabaseBootstrap.isInitialized) {
+    return '';
+  }
+  ref.watch(supabaseAuthStateProvider);
+  return Supabase.instance.client.auth.currentUser?.email ?? '';
+});
 
 final articleRepositoryProvider = Provider<ArticleRepository>((ref) {
   if (ref.watch(useMockDataProvider)) {

@@ -62,7 +62,12 @@ class MockLearnRepository implements LearnRepository {
         LessonQuestion(
           id: 'q1',
           prompt: 'Which body proposes new EU legislation?',
-          options: ['The Commission', 'The Parliament', 'The Council', 'The Court'],
+          options: [
+            'The Commission',
+            'The Parliament',
+            'The Council',
+            'The Court',
+          ],
           correctIndex: 0,
         ),
         LessonQuestion(
@@ -80,7 +85,12 @@ class MockLearnRepository implements LearnRepository {
         LessonQuestion(
           id: 'q3',
           prompt: 'Qualified majority voting needs a majority of what?',
-          options: ['Countries only', 'Population only', 'Countries and population', 'Unanimity'],
+          options: [
+            'Countries only',
+            'Population only',
+            'Countries and population',
+            'Unanimity',
+          ],
           correctIndex: 2,
         ),
       ],
@@ -91,8 +101,45 @@ class MockLearnRepository implements LearnRepository {
       questions: [
         LessonQuestion(
           id: 'q4',
-          prompt: 'Which city is strongly associated with modern Spanish trap scenes?',
+          prompt:
+              'Which city is strongly associated with modern Spanish trap scenes?',
           options: ['Madrid', 'Lisbon', 'Hamburg', 'Prague'],
+          correctIndex: 0,
+        ),
+      ],
+    ),
+    LessonContent(
+      id: 'quiz-1',
+      title: 'Capitals Sprint',
+      questions: [
+        LessonQuestion(
+          id: 'quiz-q1',
+          prompt: 'What is the capital of France?',
+          options: ['Paris', 'Madrid', 'Vienna', 'Stockholm'],
+          correctIndex: 0,
+        ),
+      ],
+    ),
+    LessonContent(
+      id: 'quiz-2',
+      title: 'EU Institutions Blitz',
+      questions: [
+        LessonQuestion(
+          id: 'quiz-q2',
+          prompt: 'Which institution proposes EU legislation?',
+          options: ['Commission', 'Parliament', 'Council', 'Court'],
+          correctIndex: 0,
+        ),
+      ],
+    ),
+    LessonContent(
+      id: 'quiz-3',
+      title: 'Nordic Culture Connections',
+      questions: [
+        LessonQuestion(
+          id: 'quiz-q3',
+          prompt: 'Which country is known for fika?',
+          options: ['Sweden', 'Portugal', 'Romania', 'Belgium'],
           correctIndex: 0,
         ),
       ],

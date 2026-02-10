@@ -12,12 +12,14 @@ import '../screens/learn_page.dart';
 import '../screens/learn_track_page.dart';
 import '../screens/lesson_page.dart';
 import '../screens/messages_page.dart';
+import '../screens/message_thread_page.dart';
 import '../screens/perks_page.dart';
 import '../screens/pricing_page.dart';
 import '../screens/quiz_categories_page.dart';
 import '../screens/quiz_play_page.dart';
 import '../screens/saved_page.dart';
 import '../screens/settings_page.dart';
+import '../screens/sign_in_page.dart';
 import '../screens/topic_feed_page.dart';
 import '../screens/write_page.dart';
 import '../screens/you_page.dart';
@@ -104,6 +106,21 @@ class AppRouter {
               ],
             ),
           ],
+        ),
+        GoRoute(
+          path: AppRoutePath.messageThread,
+          name: AppRouteName.messageThread,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) {
+            final threadId = state.pathParameters['threadId'] ?? '';
+            final threadTitle = state.extra is String
+                ? state.extra as String
+                : 'Conversation';
+            return MessageThreadPage(
+              threadId: threadId,
+              threadTitle: threadTitle,
+            );
+          },
         ),
         GoRoute(
           path: AppRoutePath.saved,
@@ -212,6 +229,12 @@ class AppRouter {
           name: AppRouteName.write,
           parentNavigatorKey: rootNavigatorKey,
           builder: (context, state) => const WritePage(),
+        ),
+        GoRoute(
+          path: AppRoutePath.signIn,
+          name: AppRouteName.signIn,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const SignInPage(),
         ),
       ],
     );

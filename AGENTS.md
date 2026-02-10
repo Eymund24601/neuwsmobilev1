@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## Critical Rule
+"You are the main developer, the CTO. The user, Edvin, is not technical, and he fully trusts your technical judgement with implementations and logic. This is a big responsibility, do not take it lightly, and be clear when explaining tech.
+
+For the app, Edvin has tasked two main pillars that you must always follow: Performance and smoothness. This app must feel modern for users, making them wow at how only one human and one ai coder achieved this."
+
 ## Project Structure & Module Organization
 This is a Flutter MVP app. Core app code lives in `lib/`:
 - `lib/screens/` for UI pages.
@@ -50,9 +55,19 @@ flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 Never commit secrets in source, docs, or test fixtures.
 
 ## Backend Context Rules (Read First)
+Quick index (where to find what):
+- Backend architecture + migration runbook: `docs/backend_schema.md`
+- Supabase app/runtime + SQL/admin connection setup: `docs/supabase_connection.md`
+- Session history + latest decisions: `dev context txt/DEV_LOG_INDEX.txt` then newest dated log
+- Executable backend source of truth: `supabase/migrations/`
+- App-facing backend contracts: `lib/repositories/` and `lib/models/`
+
 Before making any backend/data-model/repository change, agents must read:
 - `docs/backend_schema.md` (authoritative backend architecture + migration logic)
-- `dev context txt/DEV_LOG_2026-02-06.txt` (session log + migration troubleshooting history)
+- `dev context txt/DEV_LOG_INDEX.txt` (ordered log entry points)
+- `dev context txt/DEV_LOG_2026-02-10.txt` (latest messaging/profile/seed + realtime updates)
+- `dev context txt/DEV_LOG_2026-02-09.txt` (stabilization + auth/sign-in updates)
+- `dev context txt/DEV_LOG_2026-02-06.txt` (migration troubleshooting history)
 - `supabase/migrations/` (authoritative executable SQL migrations)
 - `lib/repositories/article_repository.dart` (repository contracts)
 - `lib/repositories/community_repository.dart` and `lib/repositories/games_repository.dart` (app-facing social/game contracts)
@@ -76,7 +91,8 @@ Migration execution rules:
 
 Local runtime rules:
 - Use mock mode by default if Supabase defines are missing.
-- Use Supabase local mode with `--dart-define-from-file=.env/supabase.local.json`.
+- Use `--dart-define-from-file=.env/supabase.local.json` for Supabase-backed app runs (both local and hosted Supabase). The filename is legacy; it is still the standard runtime config file.
 - Never commit `.env/supabase.local.json`; only commit `.env/supabase.local.example.json`.
+- For agent SQL/admin access setup (psql/pooler credentials), read `docs/supabase_connection.md`.
 
 If implementation and docs diverge, update `docs/backend_schema.md` in the same change.

@@ -1,0 +1,13 @@
+# DEV LOG INDEX
+
+Read order for fastest context recovery:
+
+1. `dev context txt/DEV_LOG_2026-02-10.txt` (messaging threads/realtime + profile/settings + hosted seed work)
+2. `dev context txt/DEV_LOG_2026-02-09.txt` (stabilization + auth/sign-in work)
+3. `dev context txt/DEV_LOG_2026-02-06.txt` (migration hardening + Supabase onboarding)
+4. `dev context txt/DEV_LOG_2026-02-04.txt` (earlier baseline session)
+
+Notes:
+- Prefer newest log first.
+- Use `docs/backend_schema.md` as canonical architecture/migration source.
+- Use `docs/backend_outline.md` for quick contract mapping.

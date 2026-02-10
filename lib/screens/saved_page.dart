@@ -4,13 +4,17 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_routes.dart';
 import '../providers/feature_data_providers.dart';
+import '../providers/repository_providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/sign_in_required_view.dart';
 
 class SavedPage extends ConsumerWidget {
   const SavedPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final useMockData = ref.watch(useMockDataProvider);
+    final hasSession = ref.watch(hasSupabaseSessionProvider);
     final savedAsync = ref.watch(savedArticlesProvider);
 
     return Scaffold(
@@ -21,38 +25,43 @@ class SavedPage extends ConsumerWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: savedAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text('Could not load saved articles: $error'),
-          ),
-        ),
-        data: (saved) {
-          if (saved.isEmpty) {
-            return const Center(child: Text('No saved articles yet.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            itemCount: saved.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _SavedItem(
-              title: saved[index].title,
-              date: saved[index].dateLabel,
-              onTap: () {
-                if (saved[index].slug.isEmpty) {
-                  return;
+      body: (!useMockData && !hasSession)
+          ? const SignInRequiredView(
+              message: 'Sign in is required to view saved articles.',
+            )
+          : savedAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text('Could not load saved articles: $error'),
+                ),
+              ),
+              data: (saved) {
+                if (saved.isEmpty) {
+                  return const Center(child: Text('No saved articles yet.'));
                 }
-                context.pushNamed(
-                  AppRouteName.article,
-                  pathParameters: {'slug': saved[index].slug},
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  itemCount: saved.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) => _SavedItem(
+                    title: saved[index].title,
+                    date: saved[index].dateLabel,
+                    onTap: () {
+                      if (saved[index].slug.isEmpty) {
+                        return;
+                      }
+                      context.pushNamed(
+                        AppRouteName.article,
+                        pathParameters: {'slug': saved[index].slug},
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          );
-        },
-      ),
     );
   }
 }

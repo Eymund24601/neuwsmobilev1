@@ -10,4 +10,13 @@ class MockCreatorRepository implements CreatorRepository {
       estimatedEarnings: 'EUR 184',
     );
   }
+
+  @override
+  Future<void> saveDraft({
+    required String headline,
+    required String topic,
+    required String body,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+  }
 }

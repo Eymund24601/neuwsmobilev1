@@ -45,25 +45,36 @@ class SupabaseCommunityRepository implements CommunityRepository {
           .limit(400);
 
       final latestMessageByThread = <String, Map<String, dynamic>>{};
+      final otherUserByThread = <String, String>{};
+      final profileIds = <String>{};
       for (final dynamic row in messagesRows) {
         final map = row as Map<String, dynamic>;
         final threadId = SupabaseMappingUtils.stringValue(map, const [
           'thread_id',
         ]);
+        final senderUserId = SupabaseMappingUtils.stringValue(map, const [
+          'sender_user_id',
+        ]);
         if (threadId.isNotEmpty &&
             !latestMessageByThread.containsKey(threadId)) {
           latestMessageByThread[threadId] = map;
         }
+        if (threadId.isNotEmpty &&
+            senderUserId.isNotEmpty &&
+            senderUserId != userId) {
+          otherUserByThread.putIfAbsent(threadId, () => senderUserId);
+          profileIds.add(senderUserId);
+        }
       }
 
+      // Keep this compatibility query for schemas/policies where it is available.
+      // In stricter RLS setups we still resolve display names from sender_user_id above.
       final otherParticipantRows = await _client
           .from('dm_thread_participants')
           .select('thread_id,user_id')
           .inFilter('thread_id', threadIds)
           .neq('user_id', userId);
 
-      final otherUserByThread = <String, String>{};
-      final profileIds = <String>{};
       for (final dynamic row in otherParticipantRows) {
         final map = row as Map<String, dynamic>;
         final threadId = SupabaseMappingUtils.stringValue(map, const [
@@ -75,7 +86,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
         if (threadId.isEmpty || otherUserId.isEmpty) {
           continue;
         }
-        otherUserByThread.putIfAbsent(threadId, () => otherUserId);
+        otherUserByThread[threadId] = otherUserId;
         profileIds.add(otherUserId);
       }
 
@@ -115,6 +126,11 @@ class SupabaseCommunityRepository implements CommunityRepository {
                 'display_name',
                 'username',
               ], fallback: 'Conversation');
+        final avatarUrl = profile == null
+            ? 'assets/images/placeholder-user.jpg'
+            : SupabaseMappingUtils.stringValue(profile, const [
+                'avatar_url',
+              ], fallback: 'assets/images/placeholder-user.jpg');
 
         threads.add(
           MessageThreadSummary(
@@ -123,13 +139,178 @@ class SupabaseCommunityRepository implements CommunityRepository {
             preview: preview,
             timeLabel: _relativeTimeLabel(createdAt),
             unreadCount: unread,
+            otherUserId: otherUserId,
+            otherUserAvatarUrl: avatarUrl,
           ),
         );
       }
 
+      threads.sort((a, b) {
+        final aDate = SupabaseMappingUtils.dateTimeValue(
+          latestMessageByThread[a.threadId] ?? const <String, dynamic>{},
+          const ['created_at'],
+        );
+        final bDate = SupabaseMappingUtils.dateTimeValue(
+          latestMessageByThread[b.threadId] ?? const <String, dynamic>{},
+          const ['created_at'],
+        );
+        if (aDate == null && bDate == null) {
+          return 0;
+        }
+        if (aDate == null) {
+          return 1;
+        }
+        if (bDate == null) {
+          return -1;
+        }
+        return bDate.compareTo(aDate);
+      });
+
       return threads;
     } on PostgrestException {
       return const [];
+    }
+  }
+
+  @override
+  Future<List<DirectMessage>> getThreadMessages(String threadId) async {
+    final userId = _currentUserId;
+    if (userId == null || threadId.trim().isEmpty) {
+      return const [];
+    }
+
+    List<dynamic> messageRows;
+    try {
+      messageRows = await _client
+          .from('dm_messages')
+          .select('id,thread_id,sender_user_id,body,created_at')
+          .eq('thread_id', threadId)
+          .isFilter('deleted_at', null)
+          .order('created_at', ascending: true)
+          .limit(200);
+    } on PostgrestException {
+      messageRows = await _client
+          .from('dm_messages')
+          .select('id,thread_id,sender_user_id,body,created_at')
+          .eq('thread_id', threadId)
+          .order('created_at', ascending: true)
+          .limit(200);
+    }
+
+    final senderIds = <String>{};
+    for (final dynamic row in messageRows) {
+      final map = row as Map<String, dynamic>;
+      final senderUserId = SupabaseMappingUtils.stringValue(map, const [
+        'sender_user_id',
+      ]);
+      if (senderUserId.isNotEmpty) {
+        senderIds.add(senderUserId);
+      }
+    }
+
+    final profilesById = await _profilesById(senderIds.toList());
+
+    return messageRows.map<DirectMessage>((dynamic row) {
+      final map = row as Map<String, dynamic>;
+      final senderUserId = SupabaseMappingUtils.stringValue(map, const [
+        'sender_user_id',
+      ]);
+      final isMine = senderUserId == userId;
+      final profile = profilesById[senderUserId];
+      final senderDisplayName = isMine
+          ? 'You'
+          : (profile == null
+                ? 'User'
+                : SupabaseMappingUtils.stringValue(profile, const [
+                    'display_name',
+                    'username',
+                  ], fallback: 'User'));
+      final senderAvatarUrl = isMine
+          ? 'assets/images/placeholder-user.jpg'
+          : (profile == null
+                ? 'assets/images/placeholder-user.jpg'
+                : SupabaseMappingUtils.stringValue(profile, const [
+                    'avatar_url',
+                  ], fallback: 'assets/images/placeholder-user.jpg'));
+      final createdAt = SupabaseMappingUtils.dateTimeValue(map, const [
+        'created_at',
+      ]);
+      return DirectMessage(
+        id: SupabaseMappingUtils.stringValue(map, const ['id']),
+        threadId: SupabaseMappingUtils.stringValue(map, const [
+          'thread_id',
+        ], fallback: threadId),
+        senderUserId: senderUserId,
+        senderDisplayName: senderDisplayName,
+        senderAvatarUrl: senderAvatarUrl,
+        body: SupabaseMappingUtils.stringValue(map, const [
+          'body',
+        ], fallback: ''),
+        createdAtIso:
+            createdAt?.toUtc().toIso8601String() ??
+            DateTime.now().toUtc().toIso8601String(),
+        isMine: isMine,
+      );
+    }).toList();
+  }
+
+  @override
+  Future<void> sendThreadMessage({
+    required String threadId,
+    required String body,
+  }) async {
+    final userId = _currentUserId;
+    final trimmedBody = body.trim();
+    if (userId == null || threadId.trim().isEmpty || trimmedBody.isEmpty) {
+      return;
+    }
+
+    await _client.from('dm_messages').insert({
+      'thread_id': threadId,
+      'sender_user_id': userId,
+      'body': trimmedBody,
+    });
+  }
+
+  @override
+  Future<String?> createOrGetDmThread(String otherUserId) async {
+    final userId = _currentUserId;
+    final other = otherUserId.trim();
+    if (userId == null || other.isEmpty || other == userId) {
+      return null;
+    }
+
+    final result = await _client.rpc(
+      'create_or_get_dm_thread',
+      params: {'p_other_user_id': other},
+    );
+    if (result is String && result.trim().isNotEmpty) {
+      return result;
+    }
+    if (result is Map<String, dynamic>) {
+      final id = SupabaseMappingUtils.stringValue(result, const ['id']);
+      if (id.isNotEmpty) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<void> markThreadRead(String threadId) async {
+    final userId = _currentUserId;
+    if (userId == null || threadId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      await _client
+          .from('dm_thread_participants')
+          .update({'last_read_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('thread_id', threadId)
+          .eq('user_id', userId);
+    } on PostgrestException {
+      // Best-effort update: older environments may not yet have update policy.
     }
   }
 
@@ -518,7 +699,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
     }
     final rows = await _client
         .from('profiles')
-        .select('id,display_name,username')
+        .select('id,display_name,username,avatar_url')
         .inFilter('id', ids);
     final map = <String, Map<String, dynamic>>{};
     for (final dynamic row in rows) {

@@ -3,39 +3,48 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/community_models.dart';
 import '../providers/feature_data_providers.dart';
+import '../providers/repository_providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/sign_in_required_view.dart';
 
 class PerksPage extends ConsumerWidget {
   const PerksPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final useMockData = ref.watch(useMockDataProvider);
+    final hasSession = ref.watch(hasSupabaseSessionProvider);
     final perksAsync = ref.watch(userPerksProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perks')),
-      body: perksAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text('Could not load perks: $error'),
-          ),
-        ),
-        data: (perks) {
-          if (perks.isEmpty) {
-            return const Center(child: Text('No perks unlocked yet.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            itemCount: perks.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              return _PerkCard(item: perks[index]);
-            },
-          );
-        },
-      ),
+      body: (!useMockData && !hasSession)
+          ? const SignInRequiredView(
+              message: 'Sign in is required to view perks.',
+            )
+          : perksAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text('Could not load perks: $error'),
+                ),
+              ),
+              data: (perks) {
+                if (perks.isEmpty) {
+                  return const Center(child: Text('No perks unlocked yet.'));
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  itemCount: perks.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    return _PerkCard(item: perks[index]);
+                  },
+                );
+              },
+            ),
     );
   }
 }

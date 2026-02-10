@@ -124,6 +124,33 @@ class SupabaseGamesRepository implements GamesRepository {
   }
 
   @override
+  Future<void> submitQuizAttempt({
+    required String quizId,
+    required int score,
+    required int maxScore,
+    required Duration duration,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Sign in required to submit quiz attempts.');
+    }
+
+    try {
+      await _client.from('quiz_attempts').insert({
+        'quiz_set_id': quizId,
+        'user_id': userId,
+        'score': score,
+        'max_score': maxScore,
+        'duration_ms': duration.inMilliseconds,
+        'started_at': DateTime.now().subtract(duration).toIso8601String(),
+        'completed_at': DateTime.now().toIso8601String(),
+      });
+    } on PostgrestException catch (error) {
+      throw StateError('Could not submit quiz attempt: ${error.message}');
+    }
+  }
+
+  @override
   Future<EurodleRound?> getActiveEurodleRound() async {
     final gameId = await _getGameIdBySlug('eurodle');
     if (gameId == null) {

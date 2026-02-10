@@ -54,4 +54,53 @@ class SupabaseCreatorRepository implements CreatorRepository {
       estimatedEarnings: earningsRaw.isEmpty ? 'EUR 0' : earningsRaw,
     );
   }
+
+  @override
+  Future<void> saveDraft({
+    required String headline,
+    required String topic,
+    required String body,
+  }) async {
+    final authUser = _client.auth.currentUser;
+    if (authUser == null) {
+      throw StateError('Sign in required to save drafts.');
+    }
+
+    final now = DateTime.now();
+    final slugBase = headline.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '-',
+    );
+    final slug =
+        '${slugBase.replaceAll(RegExp(r'^-|-$'), '')}-${now.millisecondsSinceEpoch}';
+    final excerpt = body.trim().replaceAll('\n', ' ');
+    final safeExcerpt = excerpt.length > 180
+        ? '${excerpt.substring(0, 180).trim()}...'
+        : excerpt;
+
+    final payload = <String, dynamic>{
+      'slug': slug,
+      'title': headline.trim(),
+      'excerpt': safeExcerpt,
+      'topic': topic.trim(),
+      'is_published': false,
+      'author_id': authUser.id,
+      'content': body,
+      'body_top': body,
+      'body_bottom': body,
+      'language_top': 'English',
+      'language_bottom': 'English',
+      'created_at': now.toIso8601String(),
+    };
+
+    try {
+      await _client.from('articles').insert(payload);
+    } on PostgrestException {
+      await _client.from('articles').insert({
+        'slug': slug,
+        'title': headline.trim(),
+        'is_published': false,
+      });
+    }
+  }
 }

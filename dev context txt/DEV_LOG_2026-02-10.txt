@@ -1,0 +1,111 @@
+NEUWS MOBILE DEV LOG
+Date: February 10, 2026
+Session Focus: Hosted Supabase enablement + robust rich seed + profile/settings fixes + complete DM thread UX with realtime
+
+==================================================
+1) Goals
+==================================================
+- Make hosted Supabase usable for production-like app testing.
+- Stop one-error-at-a-time seed failures across schema variants.
+- Fix profile/settings blockers (username/name/country/image save).
+- Complete messages flow end-to-end (inbox -> thread -> send/read/realtime).
+
+==================================================
+2) Hosted Supabase Setup Notes
+==================================================
+- Confirmed working `psql` path on Windows:
+  - `C:\Program Files\PostgreSQL\18\bin\psql.exe`
+- Required pooler connection values:
+  - `PGHOST=aws-1-eu-central-1.pooler.supabase.com`
+  - `PGPORT=6543`
+  - `PGDATABASE=postgres`
+  - `PGUSER=postgres.<project_ref>`
+  - `PGPASSWORD=<database_password>`
+  - `PGSSLMODE=require`
+- Important:
+  - DB user is not the Supabase dashboard account username.
+  - repeated bad logins can trigger pooler circuit-breaker cooldown.
+
+==================================================
+3) Seed/Data Work Completed
+==================================================
+- `docs/supabase_rich_seed.sql` hardened to be schema-adaptive:
+  - enum coercion for USER-DEFINED columns
+  - required-column guards for legacy drifted schemas
+  - idempotent upserts across social/content/progression domains
+- Hosted seed verified with realistic test content:
+  - 6 seeded accounts (1 tester + 5 creators)
+  - 5 published creator articles
+  - DM threads/messages visible for real non-creator users (including existing account)
+- Added storage bootstrap for profile media testing:
+  - `public-media` bucket
+  - RLS policies for authenticated upload/update/delete + public reads
+
+==================================================
+4) Profile/Settings Fixes
+==================================================
+- Added working profile edit/save flow for:
+  - display name, username, bio, city, country, avatar/wallpaper URL
+- Country input changed from free-text code to dropdown selection.
+- Fixed hosted save failure on `profiles.email` NOT NULL:
+  - include `email` in profile upsert payload
+  - use upsert conflict target `id`
+- Fixed sign-in profile bootstrap overwrite bug:
+  - root cause: sign-in `_ensureProfileRow()` used `upsert` with generated fallback values
+  - impact: user-edited `username`/`display_name` could be reset on later sign-ins
+  - fix: only create missing profile rows (`insert`), never overwrite existing names; only backfill missing `email`
+- Added client image upload integration through Supabase Storage.
+
+==================================================
+5) Messaging Work Completed
+==================================================
+- Implemented full conversation flow:
+  - inbox row tap opens thread screen
+  - thread loads message history, sends messages, marks read state
+  - create/open DM thread path wired from app contracts
+- Added realtime updates:
+  - inbox listens to DM changes and refreshes with debounce
+  - thread listens to per-thread `dm_messages` changes and refreshes/marks read
+- UI updates completed:
+  - conversation rows show participant identity instead of generic title
+  - corrected timestamp visibility/layout and spacing
+  - increased thread message text size
+  - removed per-message sender-name text (header already identifies peer)
+  - added sender avatar rendering in thread messages
+  - fixed inbox row "stretched/pancaked" look with constrained centered row layout
+
+==================================================
+6) New Migrations Added
+==================================================
+- `supabase/migrations/20260210143000_dm_participants_self_update.sql`
+  - self-update policy for `dm_thread_participants` read-state writes
+- `supabase/migrations/20260210144000_create_or_get_dm_thread_rpc.sql`
+  - secure RPC for create-or-get DM thread between current user and target user
+  - execute granted to `authenticated` (not `anon`)
+- `supabase/migrations/20260210145000_dm_realtime_publication.sql`
+  - ensures DM tables are in `supabase_realtime` publication
+
+==================================================
+7) Verification
+==================================================
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+- Hosted DB checks passed for:
+  - DM self-update RLS policy
+  - `create_or_get_dm_thread` RPC availability/grants
+  - DM realtime publication membership
+
+==================================================
+8) Connection Docs Clarification
+==================================================
+- Added explicit runbook: `docs/supabase_connection.md`
+  - clarifies app runtime vs agent/admin SQL connection paths
+  - clarifies `.env/supabase.local.json` is used for hosted app runs too (legacy filename)
+  - captures common pooler/username/auth/circuit-breaker errors and fixes
+
+==================================================
+9) Remaining Follow-Ups
+==================================================
+1. Add optimistic local append when sending messages (before refresh round-trip).
+2. Add thread pagination/cursor loading for long histories.
+3. Add fallback UX for starting new DM when RPC is unavailable.

@@ -12,6 +12,7 @@ import '../models/event_summary.dart';
 import '../providers/cache_providers.dart';
 import '../providers/feature_data_providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/adaptive_image.dart';
 import '../widgets/primary_top_bar.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -829,8 +830,8 @@ class _EventBubbleCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
-              child: Image.asset(
-                event.imageAsset,
+              child: AdaptiveImage(
+                source: event.imageAsset,
                 height: 120,
                 width: double.infinity,
                 fit: BoxFit.cover,

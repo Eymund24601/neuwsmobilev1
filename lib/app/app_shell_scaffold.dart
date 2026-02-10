@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/feature_data_providers.dart';
+import '../providers/repository_providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 import 'app_routes.dart';
@@ -38,6 +39,10 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final useMockData = ref.watch(useMockDataProvider);
+    final hasSession = ref.watch(hasSupabaseSessionProvider);
+    final showSignIn = !useMockData && !hasSession;
+
     return Scaffold(
       body: widget.navigationShell,
       drawerEnableOpenDragGesture: true,
@@ -51,7 +56,10 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
                 child: _DrawerProfile(
-                  onTap: () => _openDrawerTab(context, AppRouteName.you),
+                  onTap: () => _openDrawerTab(
+                    context,
+                    showSignIn ? AppRouteName.signIn : AppRouteName.you,
+                  ),
                 ),
               ),
               Expanded(
@@ -126,6 +134,17 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
                                   AppRouteName.settings,
                                 ),
                               ),
+                              if (showSignIn) ...[
+                                const SizedBox(height: 10),
+                                _DrawerLink(
+                                  label: 'Sign In',
+                                  icon: Icons.login,
+                                  onTap: () => _openDrawerRoute(
+                                    context,
+                                    AppRouteName.signIn,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

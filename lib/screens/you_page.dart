@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../app/app_routes.dart';
 import '../models/community_models.dart';
 import '../models/user_profile.dart';
-import '../providers/cache_providers.dart';
 import '../providers/feature_data_providers.dart';
+import '../providers/repository_providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/adaptive_image.dart';
+import '../widgets/sign_in_required_view.dart';
 
 class YouPage extends ConsumerStatefulWidget {
   const YouPage({super.key});
@@ -18,10 +20,6 @@ class YouPage extends ConsumerStatefulWidget {
 
 class _YouPageState extends ConsumerState<YouPage> {
   int _activeTab = 0;
-  String? _selectedAvatar;
-  String? _selectedWallpaper;
-  static const _avatarKey = 'you.avatar.v1';
-  static const _wallpaperKey = 'you.wallpaper.v1';
 
   static const _tabLabels = [
     'Articles',
@@ -30,26 +28,30 @@ class _YouPageState extends ConsumerState<YouPage> {
     'Favourite Authors',
   ];
 
-  static const _avatarChoices = [
-    'assets/images/placeholder-user.jpg',
-    'assets/images/placeholder-logo.png',
-    'assets/images/placeholder.jpg',
-  ];
-
-  static const _wallpaperChoices = [
-    'assets/images/placeholder.jpg',
-    'assets/images/placeholder-logo.png',
-    'assets/images/placeholder-user.jpg',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _loadSavedVisuals();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      ref.read(profileProvider.notifier).refresh();
+      ref.read(messageThreadsProvider.notifier).refresh();
+      ref.read(messageContactsProvider.notifier).refresh();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final useMockData = ref.watch(useMockDataProvider);
+    final hasSession = ref.watch(hasSupabaseSessionProvider);
+    if (!useMockData && !hasSession) {
+      return const SafeArea(
+        child: SignInRequiredView(
+          message: 'Sign in is required to view your profile.',
+        ),
+      );
+    }
     final profileAsync = ref.watch(profileProvider);
 
     return SafeArea(
@@ -63,8 +65,6 @@ class _YouPageState extends ConsumerState<YouPage> {
         ),
         data: (profile) {
           final progression = ref.watch(userProgressionProvider).valueOrNull;
-          final avatar = _selectedAvatar ?? profile.avatarAsset;
-          final wallpaper = _selectedWallpaper ?? profile.wallpaperAsset;
 
           return ListView(
             padding: EdgeInsets.zero,
@@ -72,20 +72,9 @@ class _YouPageState extends ConsumerState<YouPage> {
               _ProfileHeader(
                 profile: profile,
                 progression: progression,
-                avatarAsset: avatar,
-                wallpaperAsset: wallpaper,
-                onPickAvatar: () => _openPicker(
-                  context,
-                  title: 'Choose profile picture',
-                  options: _avatarChoices,
-                  onSelected: _setAvatar,
-                ),
-                onPickWallpaper: () => _openPicker(
-                  context,
-                  title: 'Choose wallpaper',
-                  options: _wallpaperChoices,
-                  onSelected: _setWallpaper,
-                ),
+                avatarAsset: profile.avatarAsset,
+                wallpaperAsset: profile.wallpaperAsset,
+                onEditProfile: () => context.pushNamed(AppRouteName.settings),
               ),
               const SizedBox(height: 14),
               _TabBarRow(
@@ -100,88 +89,6 @@ class _YouPageState extends ConsumerState<YouPage> {
       ),
     );
   }
-
-  Future<void> _openPicker(
-    BuildContext context, {
-    required String title,
-    required List<String> options,
-    required ValueChanged<String> onSelected,
-  }) async {
-    final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 120,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: options.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 10),
-                  itemBuilder: (context, index) {
-                    final option = options[index];
-                    return InkWell(
-                      onTap: () => Navigator.of(context).pop(option),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: 130,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: palette.border),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.asset(option, fit: BoxFit.cover),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (picked != null) {
-      onSelected(picked);
-    }
-  }
-
-  Future<void> _loadSavedVisuals() async {
-    final preferences = await ref.read(sharedPreferencesProvider.future);
-    final avatar = preferences.getString(_avatarKey);
-    final wallpaper = preferences.getString(_wallpaperKey);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _selectedAvatar = avatar;
-      _selectedWallpaper = wallpaper;
-    });
-  }
-
-  Future<void> _setAvatar(String value) async {
-    setState(() => _selectedAvatar = value);
-    final preferences = await ref.read(sharedPreferencesProvider.future);
-    await preferences.setString(_avatarKey, value);
-  }
-
-  Future<void> _setWallpaper(String value) async {
-    setState(() => _selectedWallpaper = value);
-    final preferences = await ref.read(sharedPreferencesProvider.future);
-    await preferences.setString(_wallpaperKey, value);
-  }
 }
 
 class _ProfileHeader extends StatelessWidget {
@@ -190,16 +97,14 @@ class _ProfileHeader extends StatelessWidget {
     required this.progression,
     required this.avatarAsset,
     required this.wallpaperAsset,
-    required this.onPickAvatar,
-    required this.onPickWallpaper,
+    required this.onEditProfile,
   });
 
   final UserProfile profile;
   final UserProgressionSummary? progression;
   final String avatarAsset;
   final String wallpaperAsset;
-  final VoidCallback onPickAvatar;
-  final VoidCallback onPickWallpaper;
+  final VoidCallback onEditProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -214,13 +119,18 @@ class _ProfileHeader extends StatelessWidget {
             SizedBox(
               height: 200,
               width: double.infinity,
-              child: Image.asset(wallpaperAsset, fit: BoxFit.cover),
+              child: AdaptiveImage(
+                source: wallpaperAsset,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 200,
+              ),
             ),
             Positioned(
               left: 12,
               top: 12,
               child: FilledButton.tonalIcon(
-                onPressed: onPickWallpaper,
+                onPressed: onEditProfile,
                 icon: const Icon(Icons.edit_outlined, size: 18),
                 label: const Text('Edit'),
               ),
@@ -238,7 +148,15 @@ class _ProfileHeader extends StatelessWidget {
                     ),
                     child: CircleAvatar(
                       radius: 54,
-                      backgroundImage: AssetImage(avatarAsset),
+                      backgroundColor: palette.surfaceCard,
+                      child: ClipOval(
+                        child: AdaptiveImage(
+                          source: avatarAsset,
+                          width: 108,
+                          height: 108,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
                 ],

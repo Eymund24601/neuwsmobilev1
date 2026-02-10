@@ -224,6 +224,89 @@ class MessageContactsNotifier
   }
 }
 
+final messageThreadMessagesProvider =
+    AsyncNotifierProviderFamily<
+      MessageThreadMessagesNotifier,
+      List<DirectMessage>,
+      String
+    >(MessageThreadMessagesNotifier.new);
+
+class MessageThreadMessagesNotifier
+    extends FamilyAsyncNotifier<List<DirectMessage>, String> {
+  String? _threadId;
+
+  @override
+  Future<List<DirectMessage>> build(String threadId) async {
+    _threadId = threadId;
+    final cache = await ref.read(cacheServiceProvider.future);
+    final key = _cacheKey(threadId);
+    final cached = await cache.read<List<DirectMessage>>(key, (payload) {
+      final list = payload as List<dynamic>;
+      return list
+          .map((item) => DirectMessage.fromJson(item as Map<String, dynamic>))
+          .toList();
+    });
+    if (cached != null) {
+      if (DateTime.now().difference(cached.updatedAt) >=
+          const Duration(seconds: 45)) {
+        unawaited(_refresh(threadId, cache));
+      }
+      return cached.value;
+    }
+    return _refresh(threadId, cache);
+  }
+
+  Future<void> refresh() async {
+    final threadId = _threadId;
+    if (threadId == null) {
+      return;
+    }
+    final cache = await ref.read(cacheServiceProvider.future);
+    await _refresh(threadId, cache);
+  }
+
+  Future<void> sendMessage(String body) async {
+    final threadId = _threadId;
+    final trimmed = body.trim();
+    if (threadId == null || trimmed.isEmpty) {
+      return;
+    }
+    await ref
+        .read(communityRepositoryProvider)
+        .sendThreadMessage(threadId: threadId, body: trimmed);
+    await ref.read(communityRepositoryProvider).markThreadRead(threadId);
+    await refresh();
+    await ref.read(messageThreadsProvider.notifier).refresh();
+  }
+
+  Future<void> markRead() async {
+    final threadId = _threadId;
+    if (threadId == null) {
+      return;
+    }
+    await ref.read(communityRepositoryProvider).markThreadRead(threadId);
+    await ref.read(messageThreadsProvider.notifier).refresh();
+  }
+
+  Future<List<DirectMessage>> _refresh(
+    String threadId,
+    CacheService cache,
+  ) async {
+    final fresh = await ref
+        .read(communityRepositoryProvider)
+        .getThreadMessages(threadId);
+    await cache.write<List<DirectMessage>>(
+      _cacheKey(threadId),
+      fresh,
+      (value) => value.map((item) => item.toJson()).toList(),
+    );
+    state = AsyncData(fresh);
+    return fresh;
+  }
+
+  String _cacheKey(String threadId) => 'messages:thread:$threadId:v1';
+}
+
 final savedArticlesProvider =
     AsyncNotifierProvider<SavedArticlesNotifier, List<SavedArticleSummary>>(
       SavedArticlesNotifier.new,
@@ -823,23 +906,23 @@ class TopicFeedNotifier extends FamilyAsyncNotifier<TopicFeed, String> {
 }
 
 final startupPrefetchProvider = FutureProvider<void>((ref) async {
-  final results = await Future.wait([
-    ref.read(topStoriesProvider.future),
-    ref.read(tracksProvider.future),
-    ref.read(eventsProvider.future),
-    ref.read(profileProvider.future),
-    ref.read(quizCategoriesProvider.future),
-    ref.read(messageThreadsProvider.future),
-    ref.read(savedArticlesProvider.future),
-    ref.read(userPerksProvider.future),
-    ref.read(userCollectionsProvider.future),
-    ref.read(userProgressionProvider.future),
-  ]);
+  final topStories = await ref.read(topStoriesProvider.future);
+  final tracks = await ref.read(tracksProvider.future);
+  final events = await ref.read(eventsProvider.future);
+  await ref.read(profileProvider.future);
+  final categories = await ref.read(quizCategoriesProvider.future);
 
-  final topStories = results[0] as List<ArticleSummary>;
-  final tracks = results[1] as List<TrackSummary>;
-  final events = results[2] as List<EventSummary>;
-  final categories = results[4] as List<String>;
+  final shouldPrefetchUserScoped =
+      ref.read(useMockDataProvider) || ref.read(hasSupabaseSessionProvider);
+  if (shouldPrefetchUserScoped) {
+    await Future.wait([
+      ref.read(messageThreadsProvider.future),
+      ref.read(savedArticlesProvider.future),
+      ref.read(userPerksProvider.future),
+      ref.read(userCollectionsProvider.future),
+      ref.read(userProgressionProvider.future),
+    ]);
+  }
 
   if (topStories.isNotEmpty) {
     unawaited(

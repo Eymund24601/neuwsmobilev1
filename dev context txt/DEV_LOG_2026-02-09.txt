@@ -1,0 +1,65 @@
+NEUWS MOBILE DEV LOG
+Date: February 9, 2026
+Session Focus: Supabase integration stabilization + runtime auth gating + local seed resilience
+
+==================================================
+1) Goals
+==================================================
+- Fix high-impact runtime issues after first Supabase commit.
+- Replace scaffold-only write flows with real Supabase writes.
+- Add usable sign-in UX so gated pages can be beta tested.
+- Improve agent handoff docs to reduce repeated schema mistakes.
+
+==================================================
+2) Core Fixes Implemented
+==================================================
+- Learn repository contract alignment:
+  - moved primary learn path to `quiz_sets`/`quiz_questions`/`quiz_options`
+  - retained legacy fallbacks for older schemas
+- Article polyglot wiring:
+  - `ArticleEntryPage` now consumes `ArticleBundle`
+  - article UI can collect focus vocab and highlight selected pair terms
+- Write flows implemented:
+  - RSVP write: `event_registrations`
+  - draft save write: `articles`
+  - quiz attempt write: `quiz_attempts`
+- Media handling:
+  - added adaptive asset/network image widget for backend-driven media fields
+- Session hardening:
+  - user-scoped prefetch is skipped when Supabase session is absent
+  - gated pages now show sign-in prompt instead of silent empty states
+
+==================================================
+3) Auth UX Added
+==================================================
+- Added route/page: `/sign-in` (`SignInPage`)
+- Supports:
+  - email/password sign in
+  - email/password sign up
+- Added reactive auth state provider using `auth.onAuthStateChange`
+- Added best-effort profile row provisioning post-auth to reduce FK failures on user-scoped writes.
+- Added sign-out action in Settings for Supabase mode
+- Added drawer sign-in entry when Supabase is configured but no active session
+
+==================================================
+4) Local SQL Utilities Added/Improved
+==================================================
+- `docs/supabase_smoke_check.sql`
+  - checks critical table presence and key row counts
+- `docs/supabase_minimal_seed.sql`
+  - now schema-adaptive to reduce hard failures on drifted projects
+  - validates required NOT NULL columns before inserting
+  - skips unsupported sections with clear NOTICE output
+
+==================================================
+5) Validation
+==================================================
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+
+==================================================
+6) Remaining Work Candidates
+==================================================
+1. Add real message send/thread write flows (currently read-only).
+2. Add bookmark/repost write actions from article UI controls.
+3. Add optional magic-link or OAuth auth UX for faster beta onboarding.

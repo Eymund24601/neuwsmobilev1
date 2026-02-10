@@ -175,9 +175,9 @@ class MockArticleRepository implements ArticleRepository {
   ) async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     final detail = _details.cast<ArticleDetail?>().firstWhere(
-          (item) => item?.slug == slug,
-          orElse: () => null,
-        );
+      (item) => item?.slug == slug,
+      orElse: () => null,
+    );
     if (detail == null) {
       return null;
     }
@@ -338,6 +338,19 @@ class MockArticleRepository implements ArticleRepository {
       ),
     ];
 
-    return FocusVocabItem(rank: rank, item: vocabItem, entry: entry, forms: forms);
+    return FocusVocabItem(
+      rank: rank,
+      item: vocabItem,
+      entry: entry,
+      forms: forms,
+    );
+  }
+
+  @override
+  Future<void> collectFocusVocab({
+    required String articleId,
+    required List<FocusVocabItem> items,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
   }
 }

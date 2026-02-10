@@ -11,26 +11,41 @@ class SupabaseEventsRepository implements EventsRepository {
 
   @override
   Future<EventSummary?> getEventById(String eventId) async {
-    final row = await _client
-        .from('events')
-        .select('''
-          id,
-          title,
-          location,
-          location_label,
-          city,
-          country_code,
-          start_date,
-          start_at,
-          tag,
-          category,
-          description,
-          image_asset,
-          cover_image_url,
-          is_published
-          ''')
-        .eq('id', eventId)
-        .maybeSingle();
+    Map<String, dynamic>? row;
+    try {
+      row = await _client
+          .from('events')
+          .select('''
+            id,
+            title,
+            location_label,
+            start_at,
+            topic,
+            description,
+            is_published
+            ''')
+          .eq('id', eventId)
+          .maybeSingle();
+    } on PostgrestException {
+      row = await _client
+          .from('events')
+          .select('''
+            id,
+            title,
+            location,
+            city,
+            country_code,
+            start_date,
+            start_at,
+            tag,
+            category,
+            description,
+            image_asset,
+            cover_image_url
+            ''')
+          .eq('id', eventId)
+          .maybeSingle();
+    }
     if (row == null) {
       return null;
     }
@@ -47,23 +62,15 @@ class SupabaseEventsRepository implements EventsRepository {
           .select('''
             id,
             title,
-            location,
             location_label,
-            city,
-            country_code,
-            start_date,
             start_at,
-            tag,
-            category,
+            topic,
             description,
-            image_asset,
-            cover_image_url,
             is_published
             ''')
           .eq('is_published', true)
-          .or('start_date.gte.$nowIso,start_at.gte.$nowIso')
+          .gte('start_at', nowIso)
           .order('start_at', ascending: true, nullsFirst: false)
-          .order('start_date', ascending: true, nullsFirst: false)
           .limit(40);
     } on PostgrestException {
       rows = await _client
@@ -81,8 +88,9 @@ class SupabaseEventsRepository implements EventsRepository {
             image_asset,
             cover_image_url
             ''')
-          .gte('start_date', nowIso)
-          .order('start_date', ascending: true)
+          .or('start_date.gte.$nowIso,start_at.gte.$nowIso')
+          .order('start_date', ascending: true, nullsFirst: false)
+          .order('start_at', ascending: true, nullsFirst: false)
           .limit(40);
     }
 
@@ -91,6 +99,24 @@ class SupabaseEventsRepository implements EventsRepository {
           (dynamic row) => _mapEvent(row as Map<String, dynamic>),
         )
         .toList();
+  }
+
+  @override
+  Future<void> registerForEvent(String eventId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Sign in required to RSVP.');
+    }
+    try {
+      await _client.from('event_registrations').upsert({
+        'event_id': eventId,
+        'user_id': userId,
+        'status': 'registered',
+        'registered_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'event_id,user_id');
+    } on PostgrestException catch (error) {
+      throw StateError('Could not RSVP: ${error.message}');
+    }
   }
 
   EventSummary _mapEvent(Map<String, dynamic> row) {
@@ -120,6 +146,7 @@ class SupabaseEventsRepository implements EventsRepository {
       dateLabel: dateLabel,
       tag: SupabaseMappingUtils.stringValue(row, const [
         'tag',
+        'topic',
         'category',
       ], fallback: 'Community'),
       description: SupabaseMappingUtils.stringValue(row, const [

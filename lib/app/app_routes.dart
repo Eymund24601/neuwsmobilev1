@@ -1,6 +1,7 @@
 class AppRouteName {
   static const home = 'home';
   static const messages = 'messages';
+  static const messageThread = 'messageThread';
   static const learn = 'learn';
   static const games = 'games';
   static const you = 'you';
@@ -20,11 +21,13 @@ class AppRouteName {
   static const perks = 'perks';
   static const explore = 'explore';
   static const write = 'write';
+  static const signIn = 'signIn';
 }
 
 class AppRoutePath {
   static const home = '/home';
   static const messages = '/messages';
+  static const messageThread = '/messages/thread/:threadId';
   static const learn = '/learn';
   static const games = '/games';
   static const you = '/you';
@@ -44,4 +47,5 @@ class AppRoutePath {
   static const perks = '/perks';
   static const explore = '/explore';
   static const write = '/write';
+  static const signIn = '/sign-in';
 }

@@ -58,7 +58,7 @@ void main() {
 
     await tester.tap(find.text('Details').first);
     await tester.pumpAndSettle();
-    expect(find.text('RSVP (UI only)'), findsOneWidget);
+    expect(find.text('RSVP'), findsOneWidget);
   });
 
   testWidgets('learn to track to lesson flow works', (

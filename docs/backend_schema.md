@@ -1,6 +1,6 @@
 # nEUws Backend Schema (Polyglot Reader + Vocab)
 
-Last updated: February 6, 2026
+Last updated: February 10, 2026
 
 ## 0) Agent Quick Start (Required)
 
@@ -22,6 +22,12 @@ Non-negotiable rules:
 
 ## Change Log
 
+- 2026-02-10: Hardened rich seed flow (`docs/supabase_rich_seed.sql`) for enum/not-null schema variance and added profile-media storage bootstrap for upload testing.
+- 2026-02-10: Added DM participant self-update RLS compatibility migration (`20260210143000_dm_participants_self_update.sql`) to support read-state updates from client message threads.
+- 2026-02-10: Added DM thread RPC migration (`20260210144000_create_or_get_dm_thread_rpc.sql`) for create-or-open conversation flow from app contacts.
+- 2026-02-10: Added DM realtime publication migration (`20260210145000_dm_realtime_publication.sql`) so inbox/thread UI receives instant Supabase realtime events.
+- 2026-02-09: Added local troubleshooting scripts (`docs/supabase_smoke_check.sql`, `docs/supabase_minimal_seed.sql`) and run order for smoke-check + minimal data seed.
+- 2026-02-09: Added rich local seed pack (`docs/supabase_rich_seed.sql`) for multi-account social/content testing (accounts, articles, DMs, collections, progression, events, quizzes).
 - 2026-02-06: Added Supabase local run workflow (`.env/supabase.local.json`, `--dart-define-from-file`) and repository fallbacks for legacy article/learn schemas + unsigned profile fallback.
 - 2026-02-06: Added migration recovery playbook (clean-reset SQL + strict rerun order) to handle legacy drift safely.
 - 2026-02-06: Added progression legacy bootstrap migration to normalize older projects before `20260206174000_progression_rewards_events.sql`.
@@ -95,6 +101,9 @@ Migration files (authoritative executable SQL):
 - `supabase/migrations/20260206182000_games_sudoku_eurodle_seed.sql`
 - `supabase/migrations/20260206190000_profile_compatibility_patch.sql`
 - `supabase/migrations/20260206201000_quiz_legacy_compat_patch.sql`
+- `supabase/migrations/20260210143000_dm_participants_self_update.sql`
+- `supabase/migrations/20260210144000_create_or_get_dm_thread_rpc.sql`
+- `supabase/migrations/20260210145000_dm_realtime_publication.sql`
 
 The SQL block below is a conceptual core snapshot. Use migration files above as executable source of truth.
 
@@ -728,8 +737,45 @@ commit;
 - Supabase mode (local dev):
   - create `.env/supabase.local.json` from `.env/supabase.local.example.json`
   - run `flutter run -d edge --dart-define-from-file=.env/supabase.local.json`
+- Supabase mode (hosted project):
+  - use hosted `SUPABASE_URL` + `SUPABASE_ANON_KEY` in `.env/supabase.local.json`
+  - run `flutter run -d edge --dart-define-from-file=.env/supabase.local.json`
+  - use pooler DB credentials (`postgres.<project_ref>`) only for psql/admin SQL, not as app auth user
 
 Notes:
 
+- `.env/supabase.local.json` is the standard app runtime define file even when connecting to hosted Supabase (name is historical).
 - End users never provide keys; keys are build-time config.
 - Service role key must never ship in the client.
+- For psql/admin connection runbook and common connection errors, see `docs/supabase_connection.md`.
+
+## 16) Smoke Check + Seed Packs (Local Troubleshooting)
+
+Use these scripts after migrations when app surfaces are empty or failing due to missing runtime data:
+
+- `docs/supabase_smoke_check.sql`
+  - verifies critical tables/columns exist
+  - reports basic published/active row counts
+- `docs/supabase_minimal_seed.sql`
+  - inserts one published article
+  - inserts one published quiz set with one question/options
+  - inserts one published event
+  - uses idempotent inserts where possible for repeatable local setup
+- `docs/supabase_rich_seed.sql`
+  - seeds 6 auth/profile accounts (1 tester + 5 creators)
+  - seeds 5 published creator articles + localizations + focus vocab
+  - seeds follows, DM threads/messages, saved/reposts/collections
+  - seeds perks/progression/streak/events + event registrations
+  - seeds multiple quiz sets/questions/options for Learn/Quiz flows
+  - schema-adaptive enum coercion + required-column guards for drifted projects
+  - bootstraps `public-media` storage bucket + policies for profile image testing
+  - prints seeded account credentials at the end for quick sign-in
+
+Suggested order:
+
+1. run migrations in strict order from section 14
+2. run `docs/supabase_smoke_check.sql`
+3. run one seed pack:
+   - minimal: `docs/supabase_minimal_seed.sql`
+   - full UX/content testing: `docs/supabase_rich_seed.sql`
+4. run `docs/supabase_smoke_check.sql` again and verify non-zero content counts
