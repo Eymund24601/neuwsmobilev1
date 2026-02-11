@@ -1,0 +1,134 @@
+NEUWS MOBILE DEV LOG
+Date: February 11, 2026
+Session Focus: Quiz Clash random-bot flow + development turn pacing
+
+==================================================
+1) Goals
+==================================================
+- Remove random-opponent acceptance wait for Quiz Clash development.
+- Make random queue start instantly against a seeded fake account bot.
+- Keep match flow asynchronous with short realistic bot response delay.
+
+==================================================
+2) Backend Changes
+==================================================
+- Added migration: `supabase/migrations/20260211101500_quiz_clash_random_bot_mode.sql`
+  - new table: `quiz_clash_bot_profiles`
+  - new match field: `quiz_clash_matches.is_bot_match`
+  - random invite path (`quiz_clash_send_invite`) now:
+    - picks active bot profile
+    - creates accepted invite + active match immediately
+    - creates round 1 with human as first picker
+    - returns `match_id` directly
+  - new bot helpers:
+    - `quiz_clash_pick_bot_user`
+    - `quiz_clash_generate_bot_answers`
+    - `quiz_clash_generate_bot_durations`
+  - new bot progression RPCs:
+    - `quiz_clash_advance_bot_turn(match_id, force=false)`
+    - `quiz_clash_progress_bot_matches()`
+- Bot progression keeps 48h timeout contract but simulates responses after short delay.
+
+==================================================
+3) Frontend/Repository Changes
+==================================================
+- Supabase games repository:
+  - `getQuizClashMatches()` now triggers `quiz_clash_progress_bot_matches`.
+  - `getQuizClashTurnState(matchId)` now triggers `quiz_clash_advance_bot_turn`.
+  - both keep compatibility fallback if RPCs are not yet migrated.
+- Quiz Clash lobby:
+  - random button copy updated to bot wording.
+  - random flow now opens match immediately when returned id resolves as a match.
+- Quiz Clash match page:
+  - added lightweight auto-refresh polling while waiting on known bot usernames.
+  - keeps realtime listeners for standard player-vs-player flow.
+- Mock games repository:
+  - random challenge now creates immediate bot match instead of pending invite.
+  - mock bot turns progress automatically after short delay.
+
+==================================================
+4) Docs Updated
+==================================================
+- `docs/backend_schema.md`
+  - change log updated
+  - migration list and strict run order updated with bot migration
+  - clean-reset drop list now includes `quiz_clash_bot_profiles`
+- `docs/backend_outline.md`
+  - Quiz Clash RPC mapping updated with bot progression behavior
+- `dev context txt/DEV_LOG_INDEX.txt`
+  - this log added as newest entry
+
+==================================================
+5) Verification
+==================================================
+- pending in-session after patch:
+  - apply migration to remote Supabase
+  - run `dart format`
+  - run `flutter analyze`
+  - run `flutter test`
+
+==================================================
+6) Runtime Config Policy Update (Same Date Addendum)
+==================================================
+- Runtime mock fallback is now disabled by default.
+- Missing Supabase runtime defines now show a blocking config error dialog/screen instead of fake online data.
+- App can still be forced into mock mode only with explicit compile-time flag:
+  - `--dart-define=ALLOW_MOCK_MODE=true`
+- Widget tests explicitly override `useMockDataProvider` and disable config enforcement to keep deterministic CI behavior.
+
+==================================================
+7) Puzzles Delivery + Runtime Policy Hardening (Same Date Addendum)
+==================================================
+Session Focus: make Puzzles genuinely playable (Sudoku + Eurodle) and remove runtime mock fallback entirely so backend failures surface immediately.
+
+Implemented:
+- Puzzles UX and flow:
+  - `lib/screens/games_page.dart` redesigned as a real puzzle launch hub (not static preview cards).
+  - Added dedicated routes + pages:
+    - `lib/screens/sudoku_play_page.dart`
+    - `lib/screens/eurodle_play_page.dart`
+  - Added route wiring:
+    - `lib/app/app_routes.dart`
+    - `lib/app/app_router.dart`
+- Sudoku:
+  - full 9x9 gameplay board, selection/highlight/conflict logic, keypad input, check/reset, timer/progress.
+  - save/resume session behavior through repository session APIs.
+- Eurodle:
+  - Wordle-style grid, keyboard states, attempt flow, enter/backspace, win/lose handling.
+  - save/resume session behavior through repository session APIs.
+- Gameplay logic extraction:
+  - `lib/services/games/sudoku_engine.dart`
+  - `lib/services/games/eurodle_engine.dart`
+  - deterministic unit tests added for both engines.
+
+Backend/repository changes:
+- Expanded `GamesRepository` contract with game-session lifecycle methods:
+  - get in-progress session
+  - start/resume
+  - save progress
+  - complete session
+- Implemented in:
+  - `lib/repositories/supabase/supabase_games_repository.dart`
+  - `lib/repositories/mock/mock_games_repository.dart` (only for test-time injection)
+- Added session model:
+  - `lib/models/game_session.dart`
+
+Strict runtime policy hardening (supersedes section 6):
+- Removed runtime mock mode support from app DI and gating paths:
+  - deleted `useMockDataProvider` / `allowRuntimeMockModeProvider` usage in runtime code.
+  - repository providers now resolve directly to Supabase implementations.
+  - user-gated screens now depend only on real Supabase session state (`hasSupabaseSessionProvider`).
+- `ALLOW_MOCK_MODE` compile-time fallback is no longer supported for runtime app behavior.
+- Widget tests keep deterministic behavior by overriding repository providers directly (test-only), not by enabling runtime mock mode.
+
+Docs updated:
+- `AGENTS.md`
+- `README.md`
+- `docs/backend_schema.md`
+- `docs/backend_outline.md`
+- `docs/performance_preload_strategy.md`
+- Notes now explicitly require Supabase config and forbid fake runtime backend fallback.
+
+Verification:
+- `flutter analyze`: PASS
+- `flutter test`: PASS

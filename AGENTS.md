@@ -10,7 +10,7 @@ This is a Flutter MVP app. Core app code lives in `lib/`:
 - `lib/screens/` for UI pages.
 - `lib/widgets/` for reusable UI components.
 - `lib/models/` for typed domain models.
-- `lib/repositories/` for data access (`mock/` and `supabase/` implementations).
+- `lib/repositories/` for data access (Supabase implementations).
 - `lib/providers/` for Riverpod provider wiring.
 - `lib/services/` for cross-cutting services (for example cache and Supabase bootstrap).
 
@@ -78,7 +78,6 @@ Non-negotiable architecture constraints:
 - Canonical alignment routing is `source -> canonical -> target` (O(N)); do not introduce pairwise O(N^2) storage as the base design.
 - Offset encoding is UTF-16 code units for all stored span/alignment offsets.
 - Prefer additive migrations and compatibility fallbacks over destructive schema rewrites.
-- Keep mock repositories compiling with reasonable placeholder data for new model fields.
 - XP must be event-ledger based (`xp_ledger` append-only) with derived totals in `user_progression`; avoid direct manual total mutations in app code.
 - Streaks must derive from activity events (`streak_events`) rather than ad-hoc counters in client logic.
 - Sudoku backend contract: store puzzle/solution as compact 81-char row-major strings in `game_rounds.compact_payload`, with `skill_point` 1..5.
@@ -90,7 +89,8 @@ Migration execution rules:
 - For fresh/repair setup, use strict migration order documented in `docs/backend_schema.md` section "Migration Operations Runbook".
 
 Local runtime rules:
-- Use mock mode by default if Supabase defines are missing.
+- Do not use mock mode. Missing Supabase defines must surface a blocking configuration error in app runtime.
+- Never introduce runtime repository fallbacks that simulate connected backend state.
 - Use `--dart-define-from-file=.env/supabase.local.json` for Supabase-backed app runs (both local and hosted Supabase). The filename is legacy; it is still the standard runtime config file.
 - Never commit `.env/supabase.local.json`; only commit `.env/supabase.local.example.json`.
 - For agent SQL/admin access setup (psql/pooler credentials), read `docs/supabase_connection.md`.

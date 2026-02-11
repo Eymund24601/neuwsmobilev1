@@ -57,9 +57,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
-    if (!useMockData && !hasSession) {
+    if (!hasSession) {
       return const SafeArea(
         child: SignInRequiredView(
           message: 'Sign in is required to view messages.',

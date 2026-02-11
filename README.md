@@ -1,6 +1,6 @@
 # nEUws mobile v1
 
-Flutter MVP for the nEUws mobile app.
+Flutter MVP for the neuws mobile app.
 
 ## Run
 1. flutter pub get
@@ -27,7 +27,8 @@ flutter run -d edge --dart-define-from-file=.env/supabase.local.json --web-hostn
 
 Notes:
 - End users never enter keys. Keys are bundled at build time.
-- If no valid Supabase values are present, app falls back to mock data mode.
+- If Supabase values are missing, app shows a blocking configuration error dialog instead of falling back to fake online data.
+- Runtime mock mode is not supported.
 
 ## Entry Point
 - lib/main.dart

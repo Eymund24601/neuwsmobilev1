@@ -51,9 +51,9 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
-    final showSignIn = !useMockData && !hasSession;
+    final showSignIn = !hasSession;
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
 
     return Scaffold(
       body: widget.navigationShell,
@@ -172,7 +172,14 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+                child: _DrawerWordsButton(
+                  color: palette.eventsChip,
+                  onTap: () => _openDrawerRoute(context, AppRouteName.words),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
                 child: Align(
                   alignment: Alignment.bottomLeft,
                   child: ValueListenableBuilder<ThemeMode>(
@@ -206,10 +213,13 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
             icon: Icon(Icons.chat_bubble_outline),
             label: 'Messages',
           ),
-          BottomNavigationBarItem(icon: _WordsNavIcon(), label: 'Words'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.quiz_outlined),
+            label: 'Quizzes',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.grid_view_rounded),
-            label: 'Play',
+            label: 'Puzzles',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
@@ -261,6 +271,8 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
     ref.invalidate(userProgressionProvider);
     ref.invalidate(repostedArticlesProvider);
     ref.invalidate(creatorStudioProvider);
+    ref.invalidate(quizClashInvitesProvider);
+    ref.invalidate(quizClashMatchesProvider);
 
     if (nextUserId.isEmpty) {
       return;
@@ -281,6 +293,8 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
         ref.read(userPerksProvider.future),
         ref.read(userProgressionProvider.future),
         ref.read(repostedArticlesProvider.future),
+        ref.read(quizClashInvitesProvider.future),
+        ref.read(quizClashMatchesProvider.future),
       ]);
     } catch (_) {
       // Keep auth transition resilient even if one provider fetch fails.
@@ -384,19 +398,34 @@ class _DrawerProfile extends ConsumerWidget {
   }
 }
 
-class _WordsNavIcon extends StatelessWidget {
-  const _WordsNavIcon();
+class _DrawerWordsButton extends StatelessWidget {
+  const _DrawerWordsButton({required this.color, required this.onTap});
+
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = IconTheme.of(context).color ?? Colors.grey;
-    return Text(
-      'W',
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        letterSpacing: -0.6,
-        fontSize: 20,
-        color: color,
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        icon: const Icon(Icons.auto_stories_outlined),
+        label: Text(
+          'Words',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

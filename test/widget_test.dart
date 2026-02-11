@@ -3,6 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neuws_mobile_v1/main.dart';
 import 'package:neuws_mobile_v1/providers/feature_data_providers.dart';
+import 'package:neuws_mobile_v1/providers/repository_providers.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_article_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_community_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_creator_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_events_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_games_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_learn_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_profile_repository.dart';
+import 'package:neuws_mobile_v1/repositories/mock/mock_settings_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -13,8 +22,27 @@ void main() {
   Future<void> pumpApp(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [enableStartupPrefetchProvider.overrideWithValue(false)],
-        child: const NeuwsApp(),
+        overrides: [
+          enableStartupPrefetchProvider.overrideWithValue(false),
+          hasSupabaseSessionProvider.overrideWithValue(true),
+          currentSupabaseUserIdProvider.overrideWithValue('test-user'),
+          currentSupabaseUserEmailProvider.overrideWithValue(
+            'test@example.com',
+          ),
+          articleRepositoryProvider.overrideWithValue(MockArticleRepository()),
+          learnRepositoryProvider.overrideWithValue(MockLearnRepository()),
+          gamesRepositoryProvider.overrideWithValue(MockGamesRepository()),
+          eventsRepositoryProvider.overrideWithValue(MockEventsRepository()),
+          profileRepositoryProvider.overrideWithValue(MockProfileRepository()),
+          creatorRepositoryProvider.overrideWithValue(MockCreatorRepository()),
+          settingsRepositoryProvider.overrideWithValue(
+            MockSettingsRepository(),
+          ),
+          communityRepositoryProvider.overrideWithValue(
+            MockCommunityRepository(),
+          ),
+        ],
+        child: const NeuwsApp(enforceSupabaseConfig: false),
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
@@ -37,7 +65,7 @@ void main() {
     );
     expect(nav.items.length, 5);
     final labels = nav.items.map((item) => item.label).toList();
-    expect(labels, ['Home', 'Messages', 'Words', 'Play', 'You']);
+    expect(labels, ['Home', 'Messages', 'Quizzes', 'Puzzles', 'You']);
   });
 
   testWidgets('home to saved and events flow works', (
@@ -61,12 +89,16 @@ void main() {
     expect(find.text('RSVP'), findsOneWidget);
   });
 
-  testWidgets('learn to track to lesson flow works', (
+  testWidgets('words flow is accessible from drawer', (
     WidgetTester tester,
   ) async {
     await pumpApp(tester);
 
-    await switchTab(tester, 2);
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Words'));
+    await tester.pumpAndSettle();
+
     expect(
       find.text('Short tracks on Europe, culture, and politics'),
       findsOneWidget,
@@ -101,11 +133,6 @@ void main() {
 
     await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.widgetWithText(ListTile, 'Settings'),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
     await tester.tap(find.widgetWithText(ListTile, 'Settings'));
     await tester.pumpAndSettle();
     expect(find.text('Settings'), findsWidgets);
@@ -119,25 +146,31 @@ void main() {
     expect(find.text('Open Write Flow'), findsOneWidget);
   });
 
-  testWidgets('games to quiz flow works', (WidgetTester tester) async {
+  testWidgets('quizzes to normal quiz flow works', (WidgetTester tester) async {
     await pumpApp(tester);
 
-    await switchTab(tester, 3);
-    expect(find.text('Puzzles'), findsOneWidget);
+    await switchTab(tester, 2);
+    expect(find.text('Quiz Clash'), findsOneWidget);
+    expect(find.text('Normal Quizzes'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.text('Open Quiz Categories'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.drag(find.byType(ListView).first, const Offset(0, -140));
+    await tester.tap(find.text('Normal Quizzes'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Quiz Categories'), warnIfMissed: false);
-    await tester.pumpAndSettle();
-    expect(find.text('Quiz Categories'), findsWidgets);
+    expect(find.text('Normal Quizzes'), findsWidgets);
 
     await tester.tap(find.text('Geography'));
     await tester.pumpAndSettle();
     expect(find.text('Capitals Sprint'), findsOneWidget);
+  });
+
+  testWidgets('puzzles tab shows dedicated Sudoku and Eurodle launch cards', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    await switchTab(tester, 3);
+    expect(find.text('Daily Puzzle Lab'), findsOneWidget);
+    expect(find.text('Sudoku'), findsWidgets);
+    expect(find.text('Eurodle'), findsWidgets);
+    expect(find.text('Normal Quizzes'), findsNothing);
   });
 }

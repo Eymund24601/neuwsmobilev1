@@ -25,57 +25,139 @@ class _GamesPageState extends ConsumerState<GamesPage> {
     final eurodleAsync = ref.watch(eurodleRoundProvider);
 
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
+      child: RefreshIndicator(
+        onRefresh: _refreshRounds,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
+          children: [
+            const PrimaryTopBar(title: 'Puzzles'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: _HeroCard(
+                sudokuAsync: sudokuAsync,
+                eurodleAsync: eurodleAsync,
+                onPlaySudoku: () {
+                  context.pushNamed(
+                    AppRouteName.sudokuPlay,
+                    queryParameters: {'skill': '$_selectedSkill'},
+                  );
+                },
+                onPlayEurodle: () =>
+                    context.pushNamed(AppRouteName.eurodlePlay),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: _SudokuLaunchCard(
+                sudokuAsync: sudokuAsync,
+                selectedSkill: _selectedSkill,
+                onSelectSkill: (value) {
+                  setState(() => _selectedSkill = value);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: _EurodleLaunchCard(eurodleAsync: eurodleAsync),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: palette.surfaceCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Text(
+                  'Rounds are loaded from backend game tables and launched in dedicated play screens with session save/resume.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refreshRounds() async {
+    await Future.wait([
+      ref.read(sudokuSkillRoundsProvider.notifier).refresh(),
+      ref.read(eurodleRoundProvider.notifier).refresh(),
+    ]);
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.sudokuAsync,
+    required this.eurodleAsync,
+    required this.onPlaySudoku,
+    required this.onPlayEurodle,
+  });
+
+  final AsyncValue<List<SudokuRound>> sudokuAsync;
+  final AsyncValue<EurodleRound?> eurodleAsync;
+  final VoidCallback onPlaySudoku;
+  final VoidCallback onPlayEurodle;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    final sudokuReady = sudokuAsync.valueOrNull?.isNotEmpty == true;
+    final eurodleReady = eurodleAsync.valueOrNull != null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.22),
+            palette.surfaceCard,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PrimaryTopBar(title: 'Puzzles'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Text(
-              'Backend-driven games',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontSize: 22),
-            ),
+          Text(
+            'Daily Puzzle Lab',
+            style: Theme.of(context).textTheme.titleLarge,
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: _SudokuSection(
-              selectedSkill: _selectedSkill,
-              sudokuAsync: sudokuAsync,
-              onSelectSkill: (value) => setState(() => _selectedSkill = value),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: _EurodleSection(eurodleAsync: eurodleAsync),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: FilledButton.tonalIcon(
-              onPressed: () => context.pushNamed(AppRouteName.quizCategories),
-              icon: const Icon(Icons.quiz_outlined),
-              label: const Text('Open Quiz Categories'),
-            ),
+          const SizedBox(height: 6),
+          Text(
+            'Sharper gameplay with save/resume and dedicated puzzle screens.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: palette.muted),
           ),
           const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: palette.surfaceCard,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: palette.border),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: sudokuReady ? onPlaySudoku : null,
+                  icon: const Icon(Icons.grid_4x4_rounded),
+                  label: const Text('Play Sudoku'),
+                ),
               ),
-              child: Text(
-                'Sudoku and Eurodle now load from backend game rounds.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: palette.muted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: eurodleReady ? onPlayEurodle : null,
+                  icon: const Icon(Icons.spellcheck),
+                  label: const Text('Play Eurodle'),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -83,15 +165,15 @@ class _GamesPageState extends ConsumerState<GamesPage> {
   }
 }
 
-class _SudokuSection extends StatelessWidget {
-  const _SudokuSection({
-    required this.selectedSkill,
+class _SudokuLaunchCard extends StatelessWidget {
+  const _SudokuLaunchCard({
     required this.sudokuAsync,
+    required this.selectedSkill,
     required this.onSelectSkill,
   });
 
-  final int selectedSkill;
   final AsyncValue<List<SudokuRound>> sudokuAsync;
+  final int selectedSkill;
   final ValueChanged<int> onSelectSkill;
 
   @override
@@ -107,17 +189,17 @@ class _SudokuSection extends StatelessWidget {
       ),
       child: sudokuAsync.when(
         loading: () => const SizedBox(
-          height: 180,
+          height: 120,
           child: Center(child: CircularProgressIndicator()),
         ),
         error: (error, stackTrace) => SizedBox(
-          height: 120,
+          height: 110,
           child: Center(child: Text('Sudoku unavailable: $error')),
         ),
         data: (rounds) {
           if (rounds.isEmpty) {
             return const SizedBox(
-              height: 120,
+              height: 110,
               child: Center(child: Text('No Sudoku rounds available.')),
             );
           }
@@ -125,13 +207,16 @@ class _SudokuSection extends StatelessWidget {
             (round) => round.skillPoint == selectedSkill,
             orElse: () => rounds.first,
           );
+          final skills =
+              rounds.map((round) => round.skillPoint).toSet().toList()..sort();
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Sudoku', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 4),
               Text(
-                'Choose a skill point and load the active backend round.',
+                'Select a skill point and launch a full 9x9 playable board.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: palette.muted),
@@ -140,36 +225,26 @@ class _SudokuSection extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: rounds
-                    .map(
-                      (round) => ChoiceChip(
-                        label: Text('S${round.skillPoint}'),
-                        selected: round.skillPoint == current.skillPoint,
-                        onSelected: (_) => onSelectSkill(round.skillPoint),
-                      ),
-                    )
-                    .toList(),
+                children: skills.map((skill) {
+                  return ChoiceChip(
+                    label: Text('S$skill'),
+                    selected: skill == current.skillPoint,
+                    onSelected: (_) => onSelectSkill(skill),
+                  );
+                }).toList(),
               ),
-              const SizedBox(height: 10),
-              _SudokuGridPreview(puzzle: current.puzzleGrid),
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Text(
-                    'Difficulty: ${current.difficulty}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: palette.muted),
-                  ),
+                  _MetaChip(label: current.difficulty.toUpperCase()),
+                  const SizedBox(width: 8),
+                  _MetaChip(label: current.roundKey),
                   const Spacer(),
                   FilledButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Loaded ${current.roundKey} from backend',
-                          ),
-                        ),
+                      context.pushNamed(
+                        AppRouteName.sudokuPlay,
+                        queryParameters: {'skill': '${current.skillPoint}'},
                       );
                     },
                     child: const Text('Play'),
@@ -184,53 +259,8 @@ class _SudokuSection extends StatelessWidget {
   }
 }
 
-class _SudokuGridPreview extends StatelessWidget {
-  const _SudokuGridPreview({required this.puzzle});
-
-  final String puzzle;
-
-  @override
-  Widget build(BuildContext context) {
-    final cleaned = puzzle.length >= 81
-        ? puzzle.substring(0, 81)
-        : puzzle.padRight(81, '0');
-    final palette = Theme.of(context).extension<NeuwsPalette>()!;
-
-    return SizedBox(
-      height: 210,
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 9,
-          crossAxisSpacing: 2,
-          mainAxisSpacing: 2,
-        ),
-        itemCount: 81,
-        itemBuilder: (context, index) {
-          final char = cleaned[index];
-          final value = char == '0' ? '' : char;
-          return Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: palette.surfaceCard,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: palette.border),
-            ),
-            child: Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _EurodleSection extends StatelessWidget {
-  const _EurodleSection({required this.eurodleAsync});
+class _EurodleLaunchCard extends StatelessWidget {
+  const _EurodleLaunchCard({required this.eurodleAsync});
 
   final AsyncValue<EurodleRound?> eurodleAsync;
 
@@ -267,33 +297,26 @@ class _EurodleSection extends StatelessWidget {
               Text('Eurodle', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 4),
               Text(
-                '${round.wordLength} letters · ${round.maxAttempts} attempts',
+                '${round.wordLength} letters • ${round.maxAttempts} attempts',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: palette.muted),
               ),
               const SizedBox(height: 10),
-              Text(round.hint, style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                round.hint.isEmpty ? 'No hint provided.' : round.hint,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Text(
-                    'Round: ${round.roundKey}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: palette.muted),
-                  ),
+                  _MetaChip(label: round.difficulty.toUpperCase()),
+                  const SizedBox(width: 8),
+                  _MetaChip(label: round.roundKey),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Loaded ${round.roundKey} from backend',
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () =>
+                        context.pushNamed(AppRouteName.eurodlePlay),
                     child: const Text('Play'),
                   ),
                 ],
@@ -302,6 +325,26 @@ class _EurodleSection extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<NeuwsPalette>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: palette.surfaceCard,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.border),
+      ),
+      child: Text(label, style: Theme.of(context).textTheme.bodySmall),
     );
   }
 }

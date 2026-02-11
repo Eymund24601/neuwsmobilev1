@@ -6,7 +6,6 @@ import '../app/app_routes.dart';
 import '../models/track_summary.dart';
 import '../providers/feature_data_providers.dart';
 import '../theme/app_theme.dart';
-import '../widgets/primary_top_bar.dart';
 
 class LearnPage extends ConsumerWidget {
   const LearnPage({super.key});
@@ -16,8 +15,9 @@ class LearnPage extends ConsumerWidget {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
     final tracksAsync = ref.watch(tracksProvider);
 
-    return SafeArea(
-      child: tracksAsync.when(
+    return Scaffold(
+      appBar: AppBar(title: const Text('Words')),
+      body: tracksAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Center(
           child: Padding(
@@ -29,7 +29,6 @@ class LearnPage extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
             children: [
-              const PrimaryTopBar(title: 'Words'),
               const SizedBox(height: 6),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),

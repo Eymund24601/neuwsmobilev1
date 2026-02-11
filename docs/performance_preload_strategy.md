@@ -18,7 +18,6 @@ Files:
 
 - `lib/repositories/article_repository.dart`
 - `lib/repositories/supabase/supabase_article_repository.dart`
-- `lib/repositories/mock/mock_article_repository.dart`
 - `lib/providers/feature_data_providers.dart`
 
 What was implemented:
@@ -91,7 +90,7 @@ What was implemented:
 
 - Added `currentSupabaseUserIdProvider`.
 - Added `UserScopedCachedAsyncNotifier` base for user-scoped domains.
-- User-scoped cache keys now include user scope (`mock`, `guest`, or authenticated user id).
+- User-scoped cache keys now include user scope (`guest` or authenticated user id).
 - User-scoped providers watch auth user id, forcing rebuild on sign-in/sign-out transitions.
 - Startup prefetch no longer loads profile in unauthenticated core stage; profile preload is now part of user-scoped stage only.
 

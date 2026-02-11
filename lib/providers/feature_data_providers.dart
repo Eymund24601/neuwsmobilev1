@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/article_bundle.dart';
@@ -8,6 +9,7 @@ import '../models/article_summary.dart';
 import '../models/community_models.dart';
 import '../models/event_summary.dart';
 import '../models/game_round.dart';
+import '../models/quiz_clash_models.dart';
 import '../models/quiz_summary.dart';
 import '../models/topic_feed.dart';
 import '../models/track_summary.dart';
@@ -27,6 +29,90 @@ final startupPrefetchBudgetProvider = Provider<StartupPrefetchBudget>(
 final startupPrefetchMetricsProvider = StateProvider<StartupPrefetchMetrics?>(
   (ref) => null,
 );
+
+class _StartupTaskTiming {
+  const _StartupTaskTiming({
+    required this.key,
+    required this.elapsed,
+    required this.success,
+    this.errorType,
+  });
+
+  final String key;
+  final Duration elapsed;
+  final bool success;
+  final String? errorType;
+}
+
+Future<void> _runMeasuredStartupTask({
+  required String key,
+  required Future<void> Function() action,
+  required List<_StartupTaskTiming> timings,
+}) async {
+  final stopwatch = Stopwatch()..start();
+  try {
+    await action();
+    stopwatch.stop();
+    final timing = _StartupTaskTiming(
+      key: key,
+      elapsed: stopwatch.elapsed,
+      success: true,
+    );
+    timings.add(timing);
+    _logStartupTaskTiming(timing);
+  } catch (error) {
+    stopwatch.stop();
+    final timing = _StartupTaskTiming(
+      key: key,
+      elapsed: stopwatch.elapsed,
+      success: false,
+      errorType: error.runtimeType.toString(),
+    );
+    timings.add(timing);
+    _logStartupTaskTiming(timing);
+    rethrow;
+  }
+}
+
+void _logStartupTaskTiming(_StartupTaskTiming timing) {
+  if (!kDebugMode) {
+    return;
+  }
+  final elapsedMs = timing.elapsed.inMilliseconds;
+  if (timing.success) {
+    debugPrint('[PERF][TASK] ${timing.key}: ${elapsedMs}ms');
+    return;
+  }
+  debugPrint(
+    '[PERF][TASK][ERROR] ${timing.key}: ${elapsedMs}ms (${timing.errorType ?? 'UnknownError'})',
+  );
+}
+
+void _logStartupTaskSummary(List<_StartupTaskTiming> timings) {
+  if (!kDebugMode || timings.isEmpty) {
+    return;
+  }
+
+  final sorted = [...timings]..sort((a, b) => b.elapsed.compareTo(a.elapsed));
+  final topLimit = sorted.length < 10 ? sorted.length : 10;
+  final topEntries = sorted
+      .take(topLimit)
+      .map((timing) => '${timing.key}=${timing.elapsed.inMilliseconds}ms')
+      .join(', ');
+
+  debugPrint(
+    '[PERF][DETAIL] startup.top_tasks($topLimit/${sorted.length}): $topEntries',
+  );
+
+  final failedTasks = sorted.where((timing) => !timing.success).toList();
+  if (failedTasks.isEmpty) {
+    return;
+  }
+  final failedSummary = failedTasks
+      .map((timing) => '${timing.key}:${timing.errorType ?? 'UnknownError'}')
+      .join(', ');
+  debugPrint('[PERF][DETAIL][ERROR] startup.failed_tasks: $failedSummary');
+}
 
 class StartupPrefetchBudget {
   const StartupPrefetchBudget({
@@ -109,9 +195,6 @@ abstract class CachedAsyncNotifier<T> extends AsyncNotifier<T> {
 }
 
 String _userCacheScope(Ref ref) {
-  if (ref.read(useMockDataProvider)) {
-    return 'mock';
-  }
   final userId = ref.read(currentSupabaseUserIdProvider);
   if (userId.isEmpty) {
     return 'guest';
@@ -950,6 +1033,110 @@ class QuizByIdNotifier extends FamilyAsyncNotifier<QuizSummary?, String> {
   }
 }
 
+final quizClashInvitesProvider =
+    AsyncNotifierProvider<
+      QuizClashInvitesNotifier,
+      List<QuizClashInviteSummary>
+    >(QuizClashInvitesNotifier.new);
+
+class QuizClashInvitesNotifier
+    extends UserScopedCachedAsyncNotifier<List<QuizClashInviteSummary>> {
+  @override
+  String get cacheKey => 'quizClash:invites:$userCacheScope:v1';
+
+  @override
+  Duration get staleAfter => const Duration(seconds: 20);
+
+  @override
+  List<QuizClashInviteSummary> decodePayload(Object? payload) {
+    final list = payload as List<dynamic>;
+    return list
+        .map(
+          (item) =>
+              QuizClashInviteSummary.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  @override
+  Object encodePayload(List<QuizClashInviteSummary> value) {
+    return value.map((item) => item.toJson()).toList();
+  }
+
+  @override
+  Future<List<QuizClashInviteSummary>> fetchFresh() {
+    return ref.read(gamesRepositoryProvider).getQuizClashInvites();
+  }
+}
+
+final quizClashMatchesProvider =
+    AsyncNotifierProvider<
+      QuizClashMatchesNotifier,
+      List<QuizClashMatchSummary>
+    >(QuizClashMatchesNotifier.new);
+
+class QuizClashMatchesNotifier
+    extends UserScopedCachedAsyncNotifier<List<QuizClashMatchSummary>> {
+  @override
+  String get cacheKey => 'quizClash:matches:$userCacheScope:v1';
+
+  @override
+  Duration get staleAfter => const Duration(seconds: 20);
+
+  @override
+  List<QuizClashMatchSummary> decodePayload(Object? payload) {
+    final list = payload as List<dynamic>;
+    return list
+        .map(
+          (item) =>
+              QuizClashMatchSummary.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  @override
+  Object encodePayload(List<QuizClashMatchSummary> value) {
+    return value.map((item) => item.toJson()).toList();
+  }
+
+  @override
+  Future<List<QuizClashMatchSummary>> fetchFresh() {
+    return ref.read(gamesRepositoryProvider).getQuizClashMatches();
+  }
+}
+
+final quizClashTurnStateProvider =
+    AsyncNotifierProviderFamily<
+      QuizClashTurnStateNotifier,
+      QuizClashTurnState?,
+      String
+    >(QuizClashTurnStateNotifier.new);
+
+class QuizClashTurnStateNotifier
+    extends FamilyAsyncNotifier<QuizClashTurnState?, String> {
+  String? _matchId;
+
+  @override
+  Future<QuizClashTurnState?> build(String matchId) async {
+    ref.watch(currentSupabaseUserIdProvider);
+    _matchId = matchId;
+    return _load(matchId);
+  }
+
+  Future<void> refresh() async {
+    final matchId = _matchId;
+    if (matchId == null || matchId.isEmpty) {
+      return;
+    }
+    state = const AsyncLoading();
+    state = AsyncData(await _load(matchId));
+  }
+
+  Future<QuizClashTurnState?> _load(String matchId) {
+    return ref.read(gamesRepositoryProvider).getQuizClashTurnState(matchId);
+  }
+}
+
 final topicFeedProvider =
     AsyncNotifierProviderFamily<TopicFeedNotifier, TopicFeed, String>(
       TopicFeedNotifier.new,
@@ -994,13 +1181,38 @@ class TopicFeedNotifier extends FamilyAsyncNotifier<TopicFeed, String> {
 final startupPrefetchProvider = FutureProvider<void>((ref) async {
   final budget = ref.read(startupPrefetchBudgetProvider);
   final totalStopwatch = Stopwatch()..start();
+  final taskTimings = <_StartupTaskTiming>[];
 
   final coreStopwatch = Stopwatch()..start();
   await Future.wait([
-    ref.read(topStoriesProvider.future),
-    ref.read(tracksProvider.future),
-    ref.read(eventsProvider.future),
-    ref.read(quizCategoriesProvider.future),
+    _runMeasuredStartupTask(
+      key: 'startup.core.topStories',
+      action: () async {
+        await ref.read(topStoriesProvider.future);
+      },
+      timings: taskTimings,
+    ),
+    _runMeasuredStartupTask(
+      key: 'startup.core.tracks',
+      action: () async {
+        await ref.read(tracksProvider.future);
+      },
+      timings: taskTimings,
+    ),
+    _runMeasuredStartupTask(
+      key: 'startup.core.events',
+      action: () async {
+        await ref.read(eventsProvider.future);
+      },
+      timings: taskTimings,
+    ),
+    _runMeasuredStartupTask(
+      key: 'startup.core.quizCategories',
+      action: () async {
+        await ref.read(quizCategoriesProvider.future);
+      },
+      timings: taskTimings,
+    ),
   ]);
   coreStopwatch.stop();
   PerformanceBudgetReporter.report(
@@ -1009,18 +1221,67 @@ final startupPrefetchProvider = FutureProvider<void>((ref) async {
     budget: budget.core,
   );
 
-  final shouldPrefetchUserScoped =
-      ref.read(useMockDataProvider) || ref.read(hasSupabaseSessionProvider);
+  final shouldPrefetchUserScoped = ref.read(hasSupabaseSessionProvider);
   var userScopedElapsed = Duration.zero;
   if (shouldPrefetchUserScoped) {
     final userScopedStopwatch = Stopwatch()..start();
     await Future.wait([
-      ref.read(profileProvider.future),
-      ref.read(messageThreadsProvider.future),
-      ref.read(savedArticlesProvider.future),
-      ref.read(userPerksProvider.future),
-      ref.read(userCollectionsProvider.future),
-      ref.read(userProgressionProvider.future),
+      _runMeasuredStartupTask(
+        key: 'startup.user.profile',
+        action: () async {
+          await ref.read(profileProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.messageThreads',
+        action: () async {
+          await ref.read(messageThreadsProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.savedArticles',
+        action: () async {
+          await ref.read(savedArticlesProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.userPerks',
+        action: () async {
+          await ref.read(userPerksProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.userCollections',
+        action: () async {
+          await ref.read(userCollectionsProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.userProgression',
+        action: () async {
+          await ref.read(userProgressionProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.quizClashInvites',
+        action: () async {
+          await ref.read(quizClashInvitesProvider.future);
+        },
+        timings: taskTimings,
+      ),
+      _runMeasuredStartupTask(
+        key: 'startup.user.quizClashMatches',
+        action: () async {
+          await ref.read(quizClashMatchesProvider.future);
+        },
+        timings: taskTimings,
+      ),
     ]);
     userScopedStopwatch.stop();
     userScopedElapsed = userScopedStopwatch.elapsed;
@@ -1032,7 +1293,13 @@ final startupPrefetchProvider = FutureProvider<void>((ref) async {
   }
 
   final articleWarmStopwatch = Stopwatch()..start();
-  await ref.read(aggressiveArticleDetailsPreloadProvider.future);
+  await _runMeasuredStartupTask(
+    key: 'startup.articleWarm.preload',
+    action: () async {
+      await ref.read(aggressiveArticleDetailsPreloadProvider.future);
+    },
+    timings: taskTimings,
+  );
   articleWarmStopwatch.stop();
   PerformanceBudgetReporter.report(
     key: 'startup.articleWarm',
@@ -1047,6 +1314,7 @@ final startupPrefetchProvider = FutureProvider<void>((ref) async {
     elapsed: totalElapsed,
     budget: budget.total,
   );
+  _logStartupTaskSummary(taskTimings);
   ref
       .read(startupPrefetchMetricsProvider.notifier)
       .state = StartupPrefetchMetrics(

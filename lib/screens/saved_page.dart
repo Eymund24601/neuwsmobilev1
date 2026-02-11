@@ -13,7 +13,6 @@ class SavedPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
     final savedAsync = ref.watch(savedArticlesProvider);
 
@@ -25,7 +24,7 @@ class SavedPage extends ConsumerWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: (!useMockData && !hasSession)
+      body: !hasSession
           ? const SignInRequiredView(
               message: 'Sign in is required to view saved articles.',
             )

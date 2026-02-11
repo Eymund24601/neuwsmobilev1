@@ -30,9 +30,8 @@ class _YouPageState extends ConsumerState<YouPage> {
 
   @override
   Widget build(BuildContext context) {
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
-    if (!useMockData && !hasSession) {
+    if (!hasSession) {
       return const SafeArea(
         child: SignInRequiredView(
           message: 'Sign in is required to view your profile.',

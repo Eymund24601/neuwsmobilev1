@@ -12,13 +12,12 @@ class PerksPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
     final perksAsync = ref.watch(userPerksProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perks')),
-      body: (!useMockData && !hasSession)
+      body: !hasSession
           ? const SignInRequiredView(
               message: 'Sign in is required to view perks.',
             )

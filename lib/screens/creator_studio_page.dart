@@ -14,13 +14,12 @@ class CreatorStudioPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
     final creatorAsync = ref.watch(creatorStudioProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Creative Studio')),
-      body: (!useMockData && !hasSession)
+      body: !hasSession
           ? const SignInRequiredView(
               message: 'Sign in is required to access Creative Studio.',
             )

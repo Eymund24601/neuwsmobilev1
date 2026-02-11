@@ -204,3 +204,59 @@ Validation:
 
 TODO:
 1. Add additive migration for `profiles.estimated_earnings` (optional, not blocking UI now).
+
+==================================================
+12) Quizzes/Puzzles Split + Quiz Clash Async Duel (Same Date Addendum)
+==================================================
+Session Focus: Navigation IA split, dedicated Quizzes hub, async turn-based Quiz Clash backend/frontend, and social-gated in-match messaging shortcut.
+
+Implemented:
+- Navigation / IA:
+  - bottom nav is now: Home, Messages, Quizzes, Puzzles, You
+  - Words moved out of bottom nav and into drawer as a large highlighted button above theme toggle
+  - compatibility redirect kept from /learn -> /words
+- Puzzles/Quizzes split:
+  - Puzzles page now contains only Sudoku + Eurodle
+  - new Quizzes page added with two entry modes:
+    - Quiz Clash
+    - Normal Quizzes
+  - normal quiz routes moved under /quizzes/normal
+- Quiz Clash data contracts:
+  - new models: invite summary, match summary, turn state, category option, turn question
+  - GamesRepository expanded with Quiz Clash APIs (invite, respond, category pick, submit turns, timeout claim)
+  - both mock and Supabase implementations updated
+- Quiz Clash backend migrations:
+  - 20260210152000_quiz_clash_core.sql
+    - categories, questions, invites, matches, rounds, round submissions
+    - indexes, triggers, RLS policies, realtime publication
+  - 20260210153000_quiz_clash_rpcs.sql
+    - RPCs for send/respond invite, pick category, submit picker/responder turns, timeout forfeit
+    - helper functions for category/question picks and answer scoring
+  - 20260210154000_quiz_clash_seed.sql
+    - ~20 categories + seed question bank
+- Quiz Clash screens:
+  - quiz_clash_lobby_page.dart
+    - random invite
+    - friend invite list filtered to mutual-follow contacts
+    - pending incoming/outgoing invites
+    - active/completed match list
+  - quiz_clash_match_page.dart
+    - round/score/deadline header
+    - picker category selection
+    - 3-question timed flow (20s/question)
+    - answer submission + turn handoff
+    - timeout forfeit claim action
+- In-match messaging shortcut:
+  - Message Opponent button added in Quiz Clash match header
+  - button enabled only when players mutually follow each other
+  - opens DM thread via existing create_or_get_dm_thread flow
+
+Seed/doc updates:
+- docs/supabase_minimal_seed.sql now seeds minimal Quiz Clash categories/questions
+- docs/supabase_rich_seed.sql now seeds Quiz Clash categories/question bank + one active async match state
+- docs/backend_schema.md and docs/backend_outline.md updated to include Quiz Clash migrations/contracts/run order
+- docs/quiz_clash_rollout_outline_2026-02-10.md added as long-session implementation outline
+
+Validation:
+- flutter analyze: PASS
+- flutter test: PASS

@@ -17,7 +17,7 @@ class QuizCategoriesPage extends ConsumerWidget {
     final categoriesAsync = ref.watch(quizCategoriesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Quiz Categories')),
+      appBar: AppBar(title: const Text('Normal Quizzes')),
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Center(
@@ -40,14 +40,21 @@ class QuizCategoriesPage extends ConsumerWidget {
                   border: Border.all(color: palette.border),
                 ),
                 child: ListTile(
-                  title: Text(category, style: Theme.of(context).textTheme.titleMedium),
+                  title: Text(
+                    category,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   subtitle: Text(
                     'Quiz set based on recent stories',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.muted),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: palette.muted),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () async {
-                    final quizzes = await repository.getQuizzesByCategory(category);
+                    final quizzes = await repository.getQuizzesByCategory(
+                      category,
+                    );
                     if (!context.mounted || quizzes.isEmpty) {
                       return;
                     }

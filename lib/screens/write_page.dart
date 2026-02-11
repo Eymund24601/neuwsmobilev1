@@ -67,12 +67,11 @@ class _WritePageState extends ConsumerState<WritePage> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Write')),
-      body: (!useMockData && !hasSession)
+      body: !hasSession
           ? const SignInRequiredView(
               message: 'Sign in is required to write and save drafts.',
             )

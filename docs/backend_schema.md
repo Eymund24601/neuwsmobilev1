@@ -1,6 +1,6 @@
 # nEUws Backend Schema (Polyglot Reader + Vocab)
 
-Last updated: February 10, 2026
+Last updated: February 11, 2026
 
 ## 0) Agent Quick Start (Required)
 
@@ -18,10 +18,13 @@ Non-negotiable rules:
 - Alignment storage base is canonical routing (`source -> canonical -> target`, O(N)).
 - Offset encoding is `utf16_code_units` for all spans/alignments.
 - Keep migration compatibility with legacy fields (`body_top`, `body_bottom`, `language_top`, `language_bottom`, `content`) until migration is complete.
-- Use additive schema changes and preserve mock repo compatibility.
+- Use additive schema changes and compatibility fallbacks over destructive rewrites.
 
 ## Change Log
 
+- 2026-02-11: Added Quiz Clash random-opponent bot migration (`20260211101500_quiz_clash_random_bot_mode.sql`) with dedicated bot profile registry, random->bot immediate match creation, and bot auto-turn progression RPCs for development pacing.
+- 2026-02-10: Added Quiz Clash async-duel migrations (`20260210152000_quiz_clash_core.sql`, `20260210153000_quiz_clash_rpcs.sql`, `20260210154000_quiz_clash_seed.sql`) with turn-based rounds, 48h timeout forfeit flow, and realtime table publication.
+- 2026-02-10: Added Quiz Clash seed coverage in `docs/supabase_minimal_seed.sql` and `docs/supabase_rich_seed.sql` (categories + question bank + seeded match state).
 - 2026-02-10: Hardened rich seed flow (`docs/supabase_rich_seed.sql`) for enum/not-null schema variance and added profile-media storage bootstrap for upload testing.
 - 2026-02-10: Added DM participant self-update RLS compatibility migration (`20260210143000_dm_participants_self_update.sql`) to support read-state updates from client message threads.
 - 2026-02-10: Added DM thread RPC migration (`20260210144000_create_or_get_dm_thread_rpc.sql`) for create-or-open conversation flow from app contacts.
@@ -104,6 +107,10 @@ Migration files (authoritative executable SQL):
 - `supabase/migrations/20260210143000_dm_participants_self_update.sql`
 - `supabase/migrations/20260210144000_create_or_get_dm_thread_rpc.sql`
 - `supabase/migrations/20260210145000_dm_realtime_publication.sql`
+- `supabase/migrations/20260210152000_quiz_clash_core.sql`
+- `supabase/migrations/20260210153000_quiz_clash_rpcs.sql`
+- `supabase/migrations/20260210154000_quiz_clash_seed.sql`
+- `supabase/migrations/20260211101500_quiz_clash_random_bot_mode.sql`
 
 The SQL block below is a conceptual core snapshot. Use migration files above as executable source of truth.
 
@@ -354,6 +361,10 @@ Current app contract mapping:
   - `getSudokuSkillRounds()`
   - `getSudokuRoundBySkillPoint(skillPoint)`
   - `getActiveEurodleRound()`
+  - `getInProgressGameSession(gameSlug, roundId)`
+  - `startOrResumeGameSession(gameSlug, roundId, initialState)`
+  - `saveGameSessionProgress(sessionId, movesCount, elapsed, state)`
+  - `completeGameSession(sessionId, score, maxScore, movesCount, elapsed, state)`
 - Community repository exposes:
   - `getMessageThreads()`
   - `getMessageContacts()`
@@ -396,6 +407,11 @@ When opening games (Sudoku + Eurodle):
    - fetch latest by `skill_point` with `published_at DESC limit 1`
 4. Eurodle active:
    - fetch latest active `game_rounds` row for `eurodle` by `published_at DESC limit 1`
+5. Puzzle session restore/save:
+   - fetch latest in-progress `user_game_sessions` row for `(user_id, round_id)`
+   - start by inserting `user_game_sessions` row when no in-progress row exists
+   - save progress by updating `state_json`, `moves_count`, `duration_ms`
+   - complete by updating status/score/completed_at and appending `user_game_events` lifecycle rows
 
 When opening community surfaces:
 
@@ -411,6 +427,25 @@ When opening community surfaces:
    - `user_collections` + `collection_items` counts
    - `article_reposts` -> `articles`
    - `user_progression` for xp/level/streak snapshot
+
+When opening Quiz Clash:
+
+1. Invite inbox:
+   - `quiz_clash_invites` where current user is sender/recipient and `status = 'pending'`
+2. Match list:
+   - `quiz_clash_matches` for current user ordered by `updated_at DESC`
+3. Match turn state:
+   - resolve `quiz_clash_matches.current_round_index`
+   - fetch one `quiz_clash_rounds` row for `(match_id, round_index)`
+   - fetch `quiz_clash_categories` by `category_option_ids`
+   - fetch `quiz_clash_questions` by `question_ids` when category already picked
+4. Match actions:
+   - invite send/respond via RPC
+   - random invite mode routes to bot-backed immediate match creation (`quiz_clash_send_invite` with `p_random = true`)
+   - picker flow: `quiz_clash_pick_category` -> `quiz_clash_submit_picker_answers`
+   - responder flow: `quiz_clash_submit_responder_turn`
+   - timeout path: `quiz_clash_claim_timeout_forfeit`
+   - bot progression helpers: `quiz_clash_progress_bot_matches`, `quiz_clash_advance_bot_turn`
 
 ## 6) Migration Path / Compatibility
 
@@ -457,6 +492,7 @@ The following domains are now part of backend structure and migrations:
   - Eurodle is stored as compact payload (`target_word`, attempts, allowed words, hint).
 - Quizzes:
   - `quiz_sets`, `quiz_questions`, `quiz_options`, `quiz_attempts`, `quiz_attempt_answers`
+  - Quiz Clash async duel: `quiz_clash_categories`, `quiz_clash_questions`, `quiz_clash_invites`, `quiz_clash_matches`, `quiz_clash_rounds`, `quiz_clash_round_submissions`
 - User graph + library:
   - `user_follows`, `user_settings`, `article_bookmarks`, `user_collections`, `collection_items`, `article_reposts`
 - Progression + rewards:
@@ -490,6 +526,13 @@ erDiagram
   quiz_questions ||--o{ quiz_options : has
   quiz_sets ||--o{ quiz_attempts : attempted
   profiles ||--o{ quiz_attempts : takes
+
+  quiz_clash_categories ||--o{ quiz_clash_questions : has
+  profiles ||--o{ quiz_clash_invites : sends
+  profiles ||--o{ quiz_clash_invites : receives
+  quiz_clash_invites ||--o{ quiz_clash_matches : accepted_as
+  quiz_clash_matches ||--o{ quiz_clash_rounds : has
+  quiz_clash_rounds ||--o{ quiz_clash_round_submissions : has
 
   profiles ||--o{ user_follows : follows
   profiles ||--o{ user_collections : owns
@@ -530,6 +573,10 @@ Sort contracts (lock these to keep behavior predictable):
   - Eurodle daily/latest: `published_at DESC, id DESC`
 - Quiz discovery:
   - `is_published = true`, then `created_at DESC` or topic-specific sort
+- Quiz Clash:
+  - invites: `status = 'pending'`, `created_at DESC`
+  - match list: participant-scoped, `updated_at DESC`
+  - active turn resolution: single-row by `match_id` + `current_round_index`, with `turn_deadline_at` checked server-side for timeout claims
 - Events:
   - upcoming list: `is_published = true` and `start_at ASC, id ASC`
   - user registrations: `registered_at DESC`
@@ -593,12 +640,27 @@ Privacy note:
 
 Current page -> backend/provider integration:
 
+- `lib/screens/quizzes_page.dart`
+  - entry hub for `Quiz Clash` and `Normal Quizzes`
 - `lib/screens/games_page.dart`
   - `sudokuSkillRoundsProvider`
   - `eurodleRoundProvider`
+- `lib/screens/sudoku_play_page.dart`
+  - `sudokuSkillRoundsProvider`
+  - `gamesRepository.startOrResumeGameSession/saveGameSessionProgress/completeGameSession`
+- `lib/screens/eurodle_play_page.dart`
+  - `eurodleRoundProvider`
+  - `gamesRepository.startOrResumeGameSession/saveGameSessionProgress/completeGameSession`
 - `lib/screens/quiz_categories_page.dart`, `lib/screens/quiz_play_page.dart`
   - `quizCategoriesProvider`
   - `quizByIdProvider`
+- `lib/screens/quiz_clash_lobby_page.dart`
+  - `quizClashInvitesProvider`
+  - `quizClashMatchesProvider`
+  - `messageContactsProvider` (mutual-follow invite list)
+- `lib/screens/quiz_clash_match_page.dart`
+  - `quizClashTurnStateProvider`
+  - `communityRepository.createOrGetDmThread` for in-match messaging button (shown only for mutual-follow opponents)
 - `lib/screens/messages_page.dart`
   - `messageThreadsProvider`
   - `messageContactsProvider`
@@ -668,6 +730,13 @@ Strict run order:
 5. `20260206182000_games_sudoku_eurodle_seed.sql`
 6. `20260206190000_profile_compatibility_patch.sql`
 7. `20260206201000_quiz_legacy_compat_patch.sql`
+8. `20260210143000_dm_participants_self_update.sql`
+9. `20260210144000_create_or_get_dm_thread_rpc.sql`
+10. `20260210145000_dm_realtime_publication.sql`
+11. `20260210152000_quiz_clash_core.sql`
+12. `20260210153000_quiz_clash_rpcs.sql`
+13. `20260210154000_quiz_clash_seed.sql`
+14. `20260211101500_quiz_clash_random_bot_mode.sql`
 
 If legacy drift blocks setup, use this clean reset (drops only neuws domain tables, not `auth.users`, not base `profiles`/`articles`):
 
@@ -704,6 +773,13 @@ drop table if exists
   public.quiz_options,
   public.quiz_questions,
   public.quiz_sets,
+  public.quiz_clash_round_submissions,
+  public.quiz_clash_rounds,
+  public.quiz_clash_matches,
+  public.quiz_clash_invites,
+  public.quiz_clash_questions,
+  public.quiz_clash_categories,
+  public.quiz_clash_bot_profiles,
   public.user_game_events,
   public.user_game_sessions,
   public.game_rounds,
@@ -731,9 +807,8 @@ cascade;
 commit;
 ```
 
-## 15) Local Run Modes
+## 15) Local Run Config
 
-- Mock mode (no Supabase values): `flutter run -d edge`
 - Supabase mode (local dev):
   - create `.env/supabase.local.json` from `.env/supabase.local.example.json`
   - run `flutter run -d edge --dart-define-from-file=.env/supabase.local.json`
@@ -746,6 +821,7 @@ Notes:
 
 - `.env/supabase.local.json` is the standard app runtime define file even when connecting to hosted Supabase (name is historical).
 - End users never provide keys; keys are build-time config.
+- Missing runtime Supabase config must block app runtime with an explicit error state (no fake data fallback).
 - Service role key must never ship in the client.
 - For psql/admin connection runbook and common connection errors, see `docs/supabase_connection.md`.
 
@@ -759,6 +835,7 @@ Use these scripts after migrations when app surfaces are empty or failing due to
 - `docs/supabase_minimal_seed.sql`
   - inserts one published article
   - inserts one published quiz set with one question/options
+  - inserts minimal Quiz Clash categories/questions
   - inserts one published event
   - uses idempotent inserts where possible for repeatable local setup
 - `docs/supabase_rich_seed.sql`
@@ -767,6 +844,7 @@ Use these scripts after migrations when app surfaces are empty or failing due to
   - seeds follows, DM threads/messages, saved/reposts/collections
   - seeds perks/progression/streak/events + event registrations
   - seeds multiple quiz sets/questions/options for Learn/Quiz flows
+  - seeds Quiz Clash categories/question bank + one active async duel state
   - schema-adaptive enum coercion + required-column guards for drifted projects
   - bootstraps `public-media` storage bucket + policies for profile image testing
   - prints seeded account credentials at the end for quick sign-in

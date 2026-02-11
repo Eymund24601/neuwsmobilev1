@@ -2313,3 +2313,272 @@ select
 from _seed_accounts a
 join _seed_account_runtime r using (account_key)
 order by a.account_key;
+
+-- Quiz Clash rich seed
+do $$
+begin
+  if to_regclass('public.quiz_clash_categories') is null then
+    return;
+  end if;
+
+  insert into public.quiz_clash_categories (slug, name, description, is_active)
+  values
+    ('geography', 'Geography', 'Capitals, countries, and places.', true),
+    ('science', 'Science', 'Physics, biology, and chemistry.', true),
+    ('space', 'Space', 'Planets, missions, and astronomy.', true),
+    ('history', 'History', 'Past events and timelines.', true),
+    ('politics', 'Politics', 'Governance and institutions.', true),
+    ('economy', 'Economy', 'Markets, trade, and money.', true),
+    ('culture', 'Culture', 'Arts, traditions, and society.', true),
+    ('literature', 'Literature', 'Books, authors, and classics.', true),
+    ('sports', 'Sports', 'Teams, tournaments, and records.', true),
+    ('technology', 'Technology', 'Computers, internet, and innovation.', true),
+    ('music', 'Music', 'Songs, genres, and artists.', true),
+    ('cinema', 'Cinema', 'Films, directors, and awards.', true),
+    ('food', 'Food', 'Cuisine and cooking knowledge.', true),
+    ('nature', 'Nature', 'Animals, ecosystems, and climate.', true),
+    ('health', 'Health', 'Medicine and wellbeing.', true),
+    ('language', 'Language', 'Words, grammar, and linguistics.', true),
+    ('eu', 'EU', 'European Union institutions and policy.', true),
+    ('transport', 'Transport', 'Mobility and infrastructure.', true),
+    ('business', 'Business', 'Companies and entrepreneurship.', true),
+    ('media', 'Media', 'News, communication, and platforms.', true)
+  on conflict (slug) do update
+  set name = excluded.name,
+      description = excluded.description,
+      is_active = excluded.is_active;
+end
+$$;
+
+do $$
+begin
+  if to_regclass('public.quiz_clash_bot_profiles') is null then
+    return;
+  end if;
+
+  insert into public.quiz_clash_bot_profiles (user_id, is_active)
+  select p.id, true
+  from public.profiles p
+  where p.id in (
+    '22222222-2222-4222-8222-222222222222'::uuid,
+    '33333333-3333-4333-8333-333333333333'::uuid,
+    '44444444-4444-4444-8444-444444444444'::uuid,
+    '55555555-5555-4555-8555-555555555555'::uuid,
+    '66666666-6666-4666-8666-666666666666'::uuid
+  )
+  on conflict (user_id) do update
+  set is_active = excluded.is_active;
+end
+$$;
+
+do $$
+declare
+  c record;
+  v_sender_id uuid;
+  v_recipient_id uuid;
+  v_match_id uuid;
+  v_round_id uuid;
+  v_category_options uuid[];
+  v_selected_category uuid;
+  v_question_ids uuid[];
+begin
+  if to_regclass('public.quiz_clash_questions') is null then
+    return;
+  end if;
+
+  for c in
+    select id, name, slug
+    from public.quiz_clash_categories
+    where is_active = true
+  loop
+    if c.slug = 'geography' then
+      insert into public.quiz_clash_questions (
+        category_id, prompt, option_a, option_b, option_c, option_d, correct_option_index, is_active
+      )
+      values
+        (c.id, 'What is the capital of Canada?', 'Toronto', 'Ottawa', 'Vancouver', 'Montreal', 2, true),
+        (c.id, 'Which city is the capital of Portugal?', 'Lisbon', 'Porto', 'Madrid', 'Milan', 1, true),
+        (c.id, 'Which country has Prague?', 'Poland', 'Czechia', 'Austria', 'Hungary', 2, true)
+      on conflict (category_id, prompt) do update
+      set option_a = excluded.option_a,
+          option_b = excluded.option_b,
+          option_c = excluded.option_c,
+          option_d = excluded.option_d,
+          correct_option_index = excluded.correct_option_index,
+          is_active = excluded.is_active;
+    elsif c.slug = 'space' then
+      insert into public.quiz_clash_questions (
+        category_id, prompt, option_a, option_b, option_c, option_d, correct_option_index, is_active
+      )
+      values
+        (c.id, 'Which planet is called the Red Planet?', 'Venus', 'Mars', 'Jupiter', 'Mercury', 2, true),
+        (c.id, 'How many planets are in the solar system?', '7', '8', '9', '10', 2, true),
+        (c.id, 'What is Earth''s natural satellite called?', 'Europa', 'Titan', 'The Moon', 'Phobos', 3, true)
+      on conflict (category_id, prompt) do update
+      set option_a = excluded.option_a,
+          option_b = excluded.option_b,
+          option_c = excluded.option_c,
+          option_d = excluded.option_d,
+          correct_option_index = excluded.correct_option_index,
+          is_active = excluded.is_active;
+    else
+      insert into public.quiz_clash_questions (
+        category_id, prompt, option_a, option_b, option_c, option_d, correct_option_index, is_active
+      )
+      values
+        (c.id, format('%s starter question 1', c.name), 'Option A', 'Option B', 'Option C', 'Option D', 1, true),
+        (c.id, format('%s starter question 2', c.name), 'Option A', 'Option B', 'Option C', 'Option D', 2, true),
+        (c.id, format('%s starter question 3', c.name), 'Option A', 'Option B', 'Option C', 'Option D', 3, true)
+      on conflict (category_id, prompt) do update
+      set option_a = excluded.option_a,
+          option_b = excluded.option_b,
+          option_c = excluded.option_c,
+          option_d = excluded.option_d,
+          correct_option_index = excluded.correct_option_index,
+          is_active = excluded.is_active;
+    end if;
+  end loop;
+
+  if to_regclass('public.quiz_clash_matches') is null
+     or to_regclass('public.quiz_clash_rounds') is null
+     or to_regclass('public.quiz_clash_round_submissions') is null then
+    return;
+  end if;
+
+  select user_id into v_sender_id
+  from _seed_account_runtime
+  where account_key = 'creator_lukas';
+
+  select user_id into v_recipient_id
+  from _seed_account_runtime
+  where account_key = 'main_tester';
+
+  if v_sender_id is null or v_recipient_id is null then
+    return;
+  end if;
+
+  v_match_id := pg_temp.seed_uuid('quiz-clash-match:lukas:tester');
+
+  insert into public.quiz_clash_matches (
+    id,
+    player_a_user_id,
+    player_b_user_id,
+    status,
+    total_rounds,
+    current_round_index,
+    current_picker_user_id,
+    current_turn_user_id,
+    turn_deadline_at,
+    score_player_a,
+    score_player_b,
+    created_at,
+    updated_at
+  )
+  values (
+    v_match_id,
+    v_sender_id,
+    v_recipient_id,
+    'active',
+    6,
+    1,
+    v_sender_id,
+    v_recipient_id,
+    now() + interval '36 hours',
+    2,
+    0,
+    now() - interval '4 hours',
+    now() - interval '10 minutes'
+  )
+  on conflict (id) do update
+  set status = excluded.status,
+      current_round_index = excluded.current_round_index,
+      current_picker_user_id = excluded.current_picker_user_id,
+      current_turn_user_id = excluded.current_turn_user_id,
+      turn_deadline_at = excluded.turn_deadline_at,
+      score_player_a = excluded.score_player_a,
+      score_player_b = excluded.score_player_b,
+      updated_at = excluded.updated_at;
+
+  select array_agg(id)
+  into v_category_options
+  from (
+    select id
+    from public.quiz_clash_categories
+    where is_active = true
+    order by slug
+    limit 3
+  ) c;
+
+  v_selected_category := v_category_options[1];
+
+  select array_agg(id)
+  into v_question_ids
+  from (
+    select q.id
+    from public.quiz_clash_questions q
+    where q.category_id = v_selected_category
+      and q.is_active = true
+    order by q.prompt
+    limit 3
+  ) q;
+
+  v_round_id := pg_temp.seed_uuid('quiz-clash-round:lukas:tester:1');
+
+  insert into public.quiz_clash_rounds (
+    id,
+    match_id,
+    round_index,
+    picker_user_id,
+    responder_user_id,
+    category_option_ids,
+    selected_category_id,
+    question_ids,
+    status,
+    created_at,
+    updated_at
+  )
+  values (
+    v_round_id,
+    v_match_id,
+    1,
+    v_sender_id,
+    v_recipient_id,
+    v_category_options,
+    v_selected_category,
+    coalesce(v_question_ids, '{}'::uuid[]),
+    'awaiting_responder',
+    now() - interval '4 hours',
+    now() - interval '15 minutes'
+  )
+  on conflict (match_id, round_index) do update
+  set picker_user_id = excluded.picker_user_id,
+      responder_user_id = excluded.responder_user_id,
+      category_option_ids = excluded.category_option_ids,
+      selected_category_id = excluded.selected_category_id,
+      question_ids = excluded.question_ids,
+      status = excluded.status,
+      updated_at = excluded.updated_at;
+
+  insert into public.quiz_clash_round_submissions (
+    round_id,
+    user_id,
+    answers,
+    duration_ms,
+    correct_count,
+    submitted_at
+  )
+  values (
+    v_round_id,
+    v_sender_id,
+    array[2, 1, 2],
+    array[9000, 12000, 11000],
+    2,
+    now() - interval '3 hours 50 minutes'
+  )
+  on conflict (round_id, user_id) do update
+  set answers = excluded.answers,
+      duration_ms = excluded.duration_ms,
+      correct_count = excluded.correct_count,
+      submitted_at = excluded.submitted_at;
+end
+$$;

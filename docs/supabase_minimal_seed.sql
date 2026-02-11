@@ -425,3 +425,110 @@ begin
       option_text = excluded.option_text,
       is_correct = excluded.is_correct;
 end $$;
+
+-- Seed minimal Quiz Clash bank
+do $$
+begin
+  if to_regclass('public.quiz_clash_categories') is null then
+    return;
+  end if;
+
+  insert into public.quiz_clash_categories (slug, name, description, is_active)
+  values
+    ('geography', 'Geography', 'Capitals and countries.', true),
+    ('science', 'Science', 'Core science trivia.', true),
+    ('space', 'Space', 'Planets and astronomy.', true)
+  on conflict (slug) do update
+  set name = excluded.name,
+      description = excluded.description,
+      is_active = excluded.is_active;
+end
+$$;
+
+do $$
+begin
+  if to_regclass('public.quiz_clash_bot_profiles') is null then
+    return;
+  end if;
+
+  insert into public.quiz_clash_bot_profiles (user_id, is_active)
+  select p.id, true
+  from public.profiles p
+  where p.id in (
+    '22222222-2222-4222-8222-222222222222'::uuid,
+    '33333333-3333-4333-8333-333333333333'::uuid,
+    '44444444-4444-4444-8444-444444444444'::uuid,
+    '55555555-5555-4555-8555-555555555555'::uuid,
+    '66666666-6666-4666-8666-666666666666'::uuid
+  )
+  on conflict (user_id) do update
+  set is_active = excluded.is_active;
+end
+$$;
+
+do $$
+declare
+  v_geo_id uuid;
+  v_sci_id uuid;
+  v_space_id uuid;
+begin
+  if to_regclass('public.quiz_clash_questions') is null then
+    return;
+  end if;
+
+  select id into v_geo_id from public.quiz_clash_categories where slug = 'geography' limit 1;
+  select id into v_sci_id from public.quiz_clash_categories where slug = 'science' limit 1;
+  select id into v_space_id from public.quiz_clash_categories where slug = 'space' limit 1;
+
+  if v_geo_id is not null then
+    insert into public.quiz_clash_questions (
+      category_id, prompt, option_a, option_b, option_c, option_d, correct_option_index, is_active
+    )
+    values
+      (v_geo_id, 'What is the capital of Canada?', 'Toronto', 'Ottawa', 'Vancouver', 'Montreal', 2, true),
+      (v_geo_id, 'Which city is the capital of Portugal?', 'Lisbon', 'Porto', 'Madrid', 'Milan', 1, true),
+      (v_geo_id, 'Which country has Prague?', 'Poland', 'Czechia', 'Austria', 'Hungary', 2, true)
+    on conflict (category_id, prompt) do update
+    set option_a = excluded.option_a,
+        option_b = excluded.option_b,
+        option_c = excluded.option_c,
+        option_d = excluded.option_d,
+        correct_option_index = excluded.correct_option_index,
+        is_active = excluded.is_active;
+  end if;
+
+  if v_sci_id is not null then
+    insert into public.quiz_clash_questions (
+      category_id, prompt, option_a, option_b, option_c, option_d, correct_option_index, is_active
+    )
+    values
+      (v_sci_id, 'What gas do humans need to breathe?', 'Nitrogen', 'Oxygen', 'Hydrogen', 'Helium', 2, true),
+      (v_sci_id, 'How many bones are in an adult human body?', '206', '186', '226', '196', 1, true),
+      (v_sci_id, 'Water freezes at what temperature in Celsius?', '0', '10', '-10', '5', 1, true)
+    on conflict (category_id, prompt) do update
+    set option_a = excluded.option_a,
+        option_b = excluded.option_b,
+        option_c = excluded.option_c,
+        option_d = excluded.option_d,
+        correct_option_index = excluded.correct_option_index,
+        is_active = excluded.is_active;
+  end if;
+
+  if v_space_id is not null then
+    insert into public.quiz_clash_questions (
+      category_id, prompt, option_a, option_b, option_c, option_d, correct_option_index, is_active
+    )
+    values
+      (v_space_id, 'Which planet is called the Red Planet?', 'Venus', 'Mars', 'Jupiter', 'Mercury', 2, true),
+      (v_space_id, 'How many planets are in the solar system?', '7', '8', '9', '10', 2, true),
+      (v_space_id, 'What is Earth''s natural satellite called?', 'Europa', 'Titan', 'The Moon', 'Phobos', 3, true)
+    on conflict (category_id, prompt) do update
+    set option_a = excluded.option_a,
+        option_b = excluded.option_b,
+        option_c = excluded.option_c,
+        option_d = excluded.option_d,
+        correct_option_index = excluded.correct_option_index,
+        is_active = excluded.is_active;
+  end if;
+end
+$$;

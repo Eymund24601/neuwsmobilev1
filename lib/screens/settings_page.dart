@@ -84,7 +84,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<NeuwsPalette>()!;
-    final useMockData = ref.watch(useMockDataProvider);
     final hasSession = ref.watch(hasSupabaseSessionProvider);
     final email = ref.watch(currentSupabaseUserEmailProvider);
     final settingsAsync = ref.watch(settingsProvider);
@@ -116,7 +115,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: (!useMockData && !hasSession)
+      body: !hasSession
           ? const SignInRequiredView(
               message: 'Sign in is required to manage settings.',
             )
@@ -435,7 +434,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       const SizedBox(height: 12),
                       const Center(child: CircularProgressIndicator()),
                     ],
-                    if (!useMockData && hasSession) ...[
+                    if (hasSession) ...[
                       const SizedBox(height: 16),
                       Container(
                         decoration: BoxDecoration(

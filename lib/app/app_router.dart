@@ -16,11 +16,16 @@ import '../screens/message_thread_page.dart';
 import '../screens/perks_page.dart';
 import '../screens/pricing_page.dart';
 import '../screens/quiz_categories_page.dart';
+import '../screens/quiz_clash_lobby_page.dart';
+import '../screens/quiz_clash_match_page.dart';
 import '../screens/quiz_play_page.dart';
+import '../screens/quizzes_page.dart';
 import '../screens/saved_page.dart';
 import '../screens/settings_page.dart';
 import '../screens/sign_in_page.dart';
+import '../screens/sudoku_play_page.dart';
 import '../screens/topic_feed_page.dart';
+import '../screens/eurodle_play_page.dart';
 import '../screens/write_page.dart';
 import '../screens/you_page.dart';
 import 'app_routes.dart';
@@ -37,11 +42,11 @@ class AppRouter {
     final messagesNavigatorKey = GlobalKey<NavigatorState>(
       debugLabel: 'messagesBranch',
     );
-    final learnNavigatorKey = GlobalKey<NavigatorState>(
-      debugLabel: 'learnBranch',
+    final quizzesNavigatorKey = GlobalKey<NavigatorState>(
+      debugLabel: 'quizzesBranch',
     );
-    final gamesNavigatorKey = GlobalKey<NavigatorState>(
-      debugLabel: 'gamesBranch',
+    final puzzlesNavigatorKey = GlobalKey<NavigatorState>(
+      debugLabel: 'puzzlesBranch',
     );
     final youNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'youBranch');
 
@@ -76,21 +81,21 @@ class AppRouter {
               ],
             ),
             StatefulShellBranch(
-              navigatorKey: learnNavigatorKey,
+              navigatorKey: quizzesNavigatorKey,
               routes: [
                 GoRoute(
-                  path: AppRoutePath.learn,
-                  name: AppRouteName.learn,
-                  builder: (context, state) => const LearnPage(),
+                  path: AppRoutePath.quizzes,
+                  name: AppRouteName.quizzes,
+                  builder: (context, state) => const QuizzesPage(),
                 ),
               ],
             ),
             StatefulShellBranch(
-              navigatorKey: gamesNavigatorKey,
+              navigatorKey: puzzlesNavigatorKey,
               routes: [
                 GoRoute(
-                  path: AppRoutePath.games,
-                  name: AppRouteName.games,
+                  path: AppRoutePath.puzzles,
+                  name: AppRouteName.puzzles,
                   builder: (context, state) => const GamesPage(),
                 ),
               ],
@@ -106,6 +111,16 @@ class AppRouter {
               ],
             ),
           ],
+        ),
+        GoRoute(
+          path: AppRoutePath.learn,
+          redirect: (context, state) => AppRoutePath.words,
+        ),
+        GoRoute(
+          path: AppRoutePath.words,
+          name: AppRouteName.words,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const LearnPage(),
         ),
         GoRoute(
           path: AppRoutePath.messageThread,
@@ -193,6 +208,37 @@ class AppRouter {
             final quizId = state.pathParameters['quizId'] ?? '';
             return QuizPlayPage(quizId: quizId);
           },
+        ),
+        GoRoute(
+          path: AppRoutePath.quizClashLobby,
+          name: AppRouteName.quizClashLobby,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const QuizClashLobbyPage(),
+        ),
+        GoRoute(
+          path: AppRoutePath.quizClashMatch,
+          name: AppRouteName.quizClashMatch,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) {
+            final matchId = state.pathParameters['matchId'] ?? '';
+            return QuizClashMatchPage(matchId: matchId);
+          },
+        ),
+        GoRoute(
+          path: AppRoutePath.sudokuPlay,
+          name: AppRouteName.sudokuPlay,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) {
+            final skillRaw = state.uri.queryParameters['skill'];
+            final skillPoint = int.tryParse(skillRaw ?? '') ?? 1;
+            return SudokuPlayPage(initialSkillPoint: skillPoint);
+          },
+        ),
+        GoRoute(
+          path: AppRoutePath.eurodlePlay,
+          name: AppRouteName.eurodlePlay,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const EurodlePlayPage(),
         ),
         GoRoute(
           path: AppRoutePath.explore,

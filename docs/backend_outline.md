@@ -1,6 +1,6 @@
 # nEUws Mobile Backend Outline (Current Supabase Handoff)
 
-Last updated: February 10, 2026
+Last updated: February 11, 2026
 
 ## 1) Purpose
 This file maps current Flutter repository contracts to active Supabase tables and runtime behavior.
@@ -38,8 +38,26 @@ Use this as a quick orientation file; `docs/backend_schema.md` remains the detai
 - `submitQuizAttempt(quizId, score, maxScore, duration)`
   - Tables: `quiz_attempts`
   - Write: signed-in users only
+- Quiz Clash read APIs:
+  - `getQuizClashInvites()`: `quiz_clash_invites` + `profiles`
+  - `getQuizClashMatches()`: `quiz_clash_matches` + `profiles` + `user_follows` (mutual-follow messaging eligibility)
+  - `getQuizClashTurnState(matchId)`: `quiz_clash_matches` + `quiz_clash_rounds` + `quiz_clash_categories` + `quiz_clash_questions`
+- Quiz Clash write APIs (RPC):
+  - `sendQuizClashInvite(...)`: `quiz_clash_send_invite`
+  - `respondToQuizClashInvite(...)`: `quiz_clash_respond_invite`
+  - `pickQuizClashCategory(...)`: `quiz_clash_pick_category`
+  - `submitQuizClashPickerTurn(...)`: `quiz_clash_submit_picker_answers`
+  - `submitQuizClashResponderTurn(...)`: `quiz_clash_submit_responder_turn`
+  - `claimQuizClashTimeoutForfeit(matchId)`: `quiz_clash_claim_timeout_forfeit`
+  - bot dev flow: random invite path creates immediate bot match; fetch paths call `quiz_clash_progress_bot_matches` / `quiz_clash_advance_bot_turn` to simulate async opponent turns
 - Sudoku/Eurodle reads:
   - Tables: `game_catalog`, `game_rounds`
+- Sudoku/Eurodle session persistence:
+  - `getInProgressGameSession(gameSlug, roundId)`: latest in-progress row from `user_game_sessions`
+  - `startOrResumeGameSession(...)`: create/reuse in-progress row in `user_game_sessions`
+  - `saveGameSessionProgress(...)`: update `state_json`, `moves_count`, `duration_ms`
+  - `completeGameSession(...)`: finalize score/status/completion on `user_game_sessions`
+  - Event logging: `user_game_events` (`session_started`, `session_completed`) where available
 
 ### `EventsRepository`
 - `getUpcomingEvents()`, `getEventById()`
@@ -85,9 +103,11 @@ Use this as a quick orientation file; `docs/backend_schema.md` remains the detai
   - verifies critical table availability and row counts
 - `docs/supabase_minimal_seed.sql`
   - seeds minimal article/quiz/event data
+  - seeds minimal Quiz Clash categories/questions
   - schema-adaptive and guarded against missing required columns
 - `docs/supabase_rich_seed.sql`
   - seeds production-like multi-user content + DM + progression test data
+  - seeds Quiz Clash categories/question bank + one active async match state
   - includes schema-adaptive enum/required-column handling for legacy drift
   - prepares profile media storage bucket/policies for image upload testing
 
@@ -95,3 +115,4 @@ Use this as a quick orientation file; `docs/backend_schema.md` remains the detai
 - Message thread pagination is not implemented yet (full refresh strategy).
 - Message send path can still be improved with optimistic append for perceived latency.
 - Auth UX currently supports email/password only (no social OAuth flow in-app).
+- Quiz Clash username search currently scopes to mutual-follow contacts (not global user directory search).

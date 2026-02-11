@@ -2,9 +2,11 @@ class AppRouteName {
   static const home = 'home';
   static const messages = 'messages';
   static const messageThread = 'messageThread';
-  static const learn = 'learn';
-  static const games = 'games';
+  static const quizzes = 'quizzes';
+  static const puzzles = 'puzzles';
   static const you = 'you';
+  static const words = 'words';
+  static const learn = 'learn';
 
   static const saved = 'saved';
   static const events = 'events';
@@ -15,6 +17,10 @@ class AppRouteName {
   static const lesson = 'lesson';
   static const quizCategories = 'quizCategories';
   static const quizPlay = 'quizPlay';
+  static const quizClashLobby = 'quizClashLobby';
+  static const quizClashMatch = 'quizClashMatch';
+  static const sudokuPlay = 'sudokuPlay';
+  static const eurodlePlay = 'eurodlePlay';
   static const settings = 'settings';
   static const pricing = 'pricing';
   static const creatorStudio = 'creatorStudio';
@@ -28,19 +34,25 @@ class AppRoutePath {
   static const home = '/home';
   static const messages = '/messages';
   static const messageThread = '/messages/thread/:threadId';
-  static const learn = '/learn';
-  static const games = '/games';
+  static const quizzes = '/quizzes';
+  static const puzzles = '/puzzles';
   static const you = '/you';
+  static const words = '/words';
+  static const learn = '/learn';
 
   static const saved = '/saved';
   static const events = '/events';
   static const eventDetail = '/events/:eventId';
   static const article = '/article/:slug';
   static const topicFeed = '/feed/:topicOrCountryCode';
-  static const learnTrack = '/learn/track/:trackId';
+  static const learnTrack = '/words/track/:trackId';
   static const lesson = '/lesson/:lessonId';
-  static const quizCategories = '/games/quizzes';
-  static const quizPlay = '/games/quiz/:quizId';
+  static const quizCategories = '/quizzes/normal';
+  static const quizPlay = '/quizzes/normal/:quizId';
+  static const quizClashLobby = '/quizzes/quiz-clash';
+  static const quizClashMatch = '/quizzes/quiz-clash/:matchId';
+  static const sudokuPlay = '/puzzles/sudoku';
+  static const eurodlePlay = '/puzzles/eurodle';
   static const settings = '/settings';
   static const pricing = '/pricing';
   static const creatorStudio = '/creator-studio';
