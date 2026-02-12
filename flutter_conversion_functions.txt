@@ -172,7 +172,7 @@ Articles
 34) ArticleEditor (components/article-editor.tsx)
     - fetchArticle() on edit mode.
     - generateSlug(title)
-    - handleSubmit(e, publish): insert/update articles with slug, excerpt, read_time, etc.
+    - handleSubmit(e, publish): insert/update articles with slug, excerpt, and metadata fields.
 35) ArticleReadingHeader (components/article-reading-header.tsx)
     - Scroll progress, completion state, random encouragement when complete.
 36) CommentSection (components/comment-section.tsx)

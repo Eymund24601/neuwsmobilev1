@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../app/app_routes.dart';
 import '../data/mock_data.dart';
+import '../services/polyglot/word_token_utils.dart';
 import '../theme/app_theme.dart';
 import '../widgets/adaptive_image.dart';
 
@@ -12,23 +14,61 @@ class ArticleVocabPair {
     required this.label,
     required this.topText,
     required this.bottomText,
+    this.topStartUtf16,
+    this.topEndUtf16,
+    this.bottomStartUtf16,
+    this.bottomEndUtf16,
+    this.statusMessage,
   });
 
   final String label;
   final String topText;
   final String bottomText;
+  final int? topStartUtf16;
+  final int? topEndUtf16;
+  final int? bottomStartUtf16;
+  final int? bottomEndUtf16;
+  final String? statusMessage;
 }
+
+typedef ArticleTapPairResolver =
+    ArticleVocabPair? Function({
+      required bool fromTop,
+      required String word,
+      required int start,
+      required int end,
+    });
 
 class ArticlePage extends StatefulWidget {
   const ArticlePage({
     super.key,
     required this.article,
+    required this.topLanguage,
+    required this.bottomLanguage,
+    this.languageOptions = const [
+      'English',
+      'Swedish',
+      'French',
+      'German',
+      'Spanish',
+      'Italian',
+      'Portuguese',
+    ],
+    this.onTopLanguageSelected,
+    this.onBottomLanguageSelected,
     this.vocabPairs = const [],
+    this.onResolveTapPair,
     this.onCollectWords,
   });
 
   final ArticleContent article;
+  final String topLanguage;
+  final String bottomLanguage;
+  final List<String> languageOptions;
+  final ValueChanged<String>? onTopLanguageSelected;
+  final ValueChanged<String>? onBottomLanguageSelected;
   final List<ArticleVocabPair> vocabPairs;
+  final ArticleTapPairResolver? onResolveTapPair;
   final Future<void> Function()? onCollectWords;
 
   @override
@@ -40,47 +80,9 @@ class _ArticlePageState extends State<ArticlePage> {
   bool _splitActive = false;
   bool _polyglotEnabled = true;
   bool _collecting = false;
-  int? _selectedPairIndex;
-  late String _languageTop;
-  late String _languageBottom;
-
-  final List<String> _languages = const [
-    'English',
-    'Swedish',
-    'French',
-    'German',
-    'Spanish',
-    'Italian',
-    'Portuguese',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_handleScroll);
-    _languageTop = _cleanLanguage(widget.article.languageTop);
-    _languageBottom = _cleanLanguage(widget.article.languageBottom);
-    _selectedPairIndex = widget.vocabPairs.isEmpty ? null : 0;
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_handleScroll);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  String _cleanLanguage(String value) {
-    return value.replaceAll('Learning:', '').replaceAll('Native:', '').trim();
-  }
-
-  ArticleVocabPair? get _selectedPair {
-    final index = _selectedPairIndex;
-    if (index == null || index < 0 || index >= widget.vocabPairs.length) {
-      return null;
-    }
-    return widget.vocabPairs[index];
-  }
+  ArticleVocabPair? _selectedPair;
+  String? _tapStatusMessage;
+  bool _tapStatusIsError = false;
 
   void _handleScroll() {
     if (!_polyglotEnabled) {
@@ -105,12 +107,66 @@ class _ArticlePageState extends State<ArticlePage> {
     });
   }
 
-  void _setTopLanguage(String value) {
-    setState(() => _languageTop = value);
+  void _selectKeyWord(ArticleVocabPair pair) {
+    final shouldClear = _samePair(_selectedPair, pair);
+    setState(() {
+      _selectedPair = shouldClear ? null : pair;
+      _tapStatusIsError = false;
+      _tapStatusMessage = shouldClear
+          ? null
+          : 'Selected ${pair.topText} / ${pair.bottomText}.';
+    });
   }
 
-  void _setBottomLanguage(String value) {
-    setState(() => _languageBottom = value);
+  bool _samePair(ArticleVocabPair? a, ArticleVocabPair b) {
+    if (a == null) {
+      return false;
+    }
+    return a.topText == b.topText && a.bottomText == b.bottomText;
+  }
+
+  _HighlightRange? _rangeFor(int? start, int? end) {
+    if (start == null || end == null || end <= start) {
+      return null;
+    }
+    return _HighlightRange(start: start, end: end);
+  }
+
+  void _handleWordTap({
+    required bool fromTop,
+    required String word,
+    required int start,
+    required int end,
+  }) {
+    final resolver = widget.onResolveTapPair;
+    if (resolver == null) {
+      return;
+    }
+    final resolved = resolver.call(
+      fromTop: fromTop,
+      word: word,
+      start: start,
+      end: end,
+    );
+    if (resolved == null) {
+      final cleanWord = PolyglotWordTokenUtils.trimEdgePunctuation(word).trim();
+      final displayWord = cleanWord.isEmpty ? word.trim() : cleanWord;
+      setState(() {
+        _selectedPair = null;
+        _tapStatusIsError = true;
+        _tapStatusMessage = displayWord.isEmpty
+            ? 'No reliable match for this tap.'
+            : 'No reliable match for "$displayWord".';
+      });
+      return;
+    }
+    setState(() {
+      _selectedPair = resolved;
+      _tapStatusIsError = false;
+      _tapStatusMessage =
+          resolved.statusMessage ??
+          'Mapped ${resolved.topText} -> ${resolved.bottomText}.';
+    });
   }
 
   Future<void> _collectWords() async {
@@ -145,6 +201,19 @@ class _ArticlePageState extends State<ArticlePage> {
         setState(() => _collecting = false);
       }
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_handleScroll);
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -277,11 +346,11 @@ class _ArticlePageState extends State<ArticlePage> {
                     children: [
                       _LanguageSelector(
                         enabled: _polyglotEnabled,
-                        topLanguage: _languageTop,
-                        bottomLanguage: _languageBottom,
-                        languages: _languages,
-                        onTopSelected: _setTopLanguage,
-                        onBottomSelected: _setBottomLanguage,
+                        topLanguage: widget.topLanguage,
+                        bottomLanguage: widget.bottomLanguage,
+                        languages: widget.languageOptions,
+                        onTopSelected: widget.onTopLanguageSelected,
+                        onBottomSelected: widget.onBottomLanguageSelected,
                       ),
                       Switch(
                         value: _polyglotEnabled,
@@ -305,25 +374,36 @@ class _ArticlePageState extends State<ArticlePage> {
               ),
             ),
           ),
-          if (widget.vocabPairs.isNotEmpty)
+          if (_tapStatusMessage != null)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (var i = 0; i < widget.vocabPairs.length; i++)
-                      FilterChip(
-                        selected: _selectedPairIndex == i,
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedPairIndex = selected ? i : null;
-                          });
-                        },
-                        label: Text(widget.vocabPairs[i].label),
-                      ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _tapStatusIsError
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.errorContainer.withValues(alpha: 0.55)
+                        : palette.surfaceCard,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _tapStatusIsError
+                          ? Theme.of(context).colorScheme.error
+                          : palette.border,
+                    ),
+                  ),
+                  child: Text(
+                    _tapStatusMessage!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: _tapStatusIsError
+                          ? Theme.of(context).colorScheme.error
+                          : palette.muted,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -337,9 +417,57 @@ class _ArticlePageState extends State<ArticlePage> {
                 bodyBottom: article.bodyBottom,
                 highlightTopTerm: _selectedPair?.topText ?? '',
                 highlightBottomTerm: _selectedPair?.bottomText ?? '',
+                highlightTopRange: _rangeFor(
+                  _selectedPair?.topStartUtf16,
+                  _selectedPair?.topEndUtf16,
+                ),
+                highlightBottomRange: _rangeFor(
+                  _selectedPair?.bottomStartUtf16,
+                  _selectedPair?.bottomEndUtf16,
+                ),
+                onTopWordTap: (word, start, end) => _handleWordTap(
+                  fromTop: true,
+                  word: word,
+                  start: start,
+                  end: end,
+                ),
+                onBottomWordTap: (word, start, end) => _handleWordTap(
+                  fromTop: false,
+                  word: word,
+                  start: start,
+                  end: end,
+                ),
               ),
             ),
           ),
+          if (widget.vocabPairs.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Key words',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final pair in widget.vocabPairs)
+                          FilterChip(
+                            selected: _samePair(_selectedPair, pair),
+                            onSelected: (_) => _selectKeyWord(pair),
+                            label: Text('${pair.topText} / ${pair.bottomText}'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
@@ -410,27 +538,40 @@ class _LanguageSelector extends StatelessWidget {
   final String topLanguage;
   final String bottomLanguage;
   final List<String> languages;
-  final ValueChanged<String> onTopSelected;
-  final ValueChanged<String> onBottomSelected;
+  final ValueChanged<String>? onTopSelected;
+  final ValueChanged<String>? onBottomSelected;
 
   String _codeFor(String language) {
-    switch (language.toLowerCase()) {
+    final normalized = language.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return '--';
+    }
+    switch (normalized) {
       case 'swedish':
-        return 'SE';
+      case 'sv':
+        return 'SV';
       case 'english':
+      case 'en':
         return 'EN';
       case 'french':
+      case 'fr':
         return 'FR';
       case 'german':
+      case 'de':
         return 'DE';
       case 'spanish':
+      case 'es':
         return 'ES';
       case 'italian':
+      case 'it':
         return 'IT';
       case 'portuguese':
+      case 'pt':
         return 'PT';
       default:
-        return language.substring(0, 2).toUpperCase();
+        return normalized.length < 2
+            ? normalized.toUpperCase()
+            : normalized.substring(0, 2).toUpperCase();
     }
   }
 
@@ -470,12 +611,13 @@ class _LanguageFlag extends StatelessWidget {
 
   final String label;
   final List<String> options;
-  final ValueChanged<String> onSelected;
+  final ValueChanged<String>? onSelected;
   final NeuwsPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
+      enabled: onSelected != null,
       onSelected: onSelected,
       itemBuilder: (context) => options
           .map((option) => PopupMenuItem(value: option, child: Text(option)))
@@ -506,6 +648,10 @@ class _PolyglotReader extends StatelessWidget {
     required this.bodyBottom,
     required this.highlightTopTerm,
     required this.highlightBottomTerm,
+    required this.highlightTopRange,
+    required this.highlightBottomRange,
+    required this.onTopWordTap,
+    required this.onBottomWordTap,
   });
 
   final bool splitActive;
@@ -514,6 +660,10 @@ class _PolyglotReader extends StatelessWidget {
   final String bodyBottom;
   final String highlightTopTerm;
   final String highlightBottomTerm;
+  final _HighlightRange? highlightTopRange;
+  final _HighlightRange? highlightBottomRange;
+  final void Function(String word, int start, int end)? onTopWordTap;
+  final void Function(String word, int start, int end)? onBottomWordTap;
 
   @override
   Widget build(BuildContext context) {
@@ -543,16 +693,24 @@ class _PolyglotReader extends StatelessWidget {
                       bodyBottom: bodyBottom,
                       topHighlightTerm: highlightTopTerm,
                       bottomHighlightTerm: highlightBottomTerm,
+                      topHighlightRange: highlightTopRange,
+                      bottomHighlightRange: highlightBottomRange,
+                      onTopWordTap: onTopWordTap,
+                      onBottomWordTap: onBottomWordTap,
                     )
                   : _SingleReader(
                       key: const ValueKey('single'),
                       body: bodyTop,
                       highlightTerm: highlightTopTerm,
+                      highlightRange: highlightTopRange,
+                      onWordTap: onTopWordTap,
                     ))
             : _SingleReader(
                 key: const ValueKey('single-off'),
                 body: bodyBottom,
                 highlightTerm: highlightBottomTerm,
+                highlightRange: highlightBottomRange,
+                onWordTap: onBottomWordTap,
               ),
       ),
     );
@@ -564,10 +722,14 @@ class _SingleReader extends StatelessWidget {
     super.key,
     required this.body,
     required this.highlightTerm,
+    required this.highlightRange,
+    required this.onWordTap,
   });
 
   final String body;
   final String highlightTerm;
+  final _HighlightRange? highlightRange;
+  final void Function(String word, int start, int end)? onWordTap;
 
   @override
   Widget build(BuildContext context) {
@@ -577,11 +739,12 @@ class _SingleReader extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: _buildHighlightedParagraph(
-        context,
+      child: _TappableParagraph(
         text: body,
         highlightTerm: highlightTerm,
+        highlightRange: highlightRange,
         style: style,
+        onWordTap: onWordTap,
       ),
     );
   }
@@ -594,12 +757,20 @@ class _SplitReader extends StatefulWidget {
     required this.bodyBottom,
     required this.topHighlightTerm,
     required this.bottomHighlightTerm,
+    required this.topHighlightRange,
+    required this.bottomHighlightRange,
+    required this.onTopWordTap,
+    required this.onBottomWordTap,
   });
 
   final String bodyTop;
   final String bodyBottom;
   final String topHighlightTerm;
   final String bottomHighlightTerm;
+  final _HighlightRange? topHighlightRange;
+  final _HighlightRange? bottomHighlightRange;
+  final void Function(String word, int start, int end)? onTopWordTap;
+  final void Function(String word, int start, int end)? onBottomWordTap;
 
   @override
   State<_SplitReader> createState() => _SplitReaderState();
@@ -657,11 +828,12 @@ class _SplitReaderState extends State<_SplitReader> {
           child: SingleChildScrollView(
             controller: _topController,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildHighlightedParagraph(
-              context,
+            child: _TappableParagraph(
               text: widget.bodyTop,
               highlightTerm: widget.topHighlightTerm,
+              highlightRange: widget.topHighlightRange,
               style: style,
+              onWordTap: widget.onTopWordTap,
             ),
           ),
         ),
@@ -673,11 +845,12 @@ class _SplitReaderState extends State<_SplitReader> {
           child: SingleChildScrollView(
             controller: _bottomController,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildHighlightedParagraph(
-              context,
+            child: _TappableParagraph(
               text: widget.bodyBottom,
               highlightTerm: widget.bottomHighlightTerm,
+              highlightRange: widget.bottomHighlightRange,
               style: style,
+              onWordTap: widget.onBottomWordTap,
             ),
           ),
         ),
@@ -686,25 +859,110 @@ class _SplitReaderState extends State<_SplitReader> {
   }
 }
 
-Widget _buildHighlightedParagraph(
+class _TappableParagraph extends StatefulWidget {
+  const _TappableParagraph({
+    required this.text,
+    required this.highlightTerm,
+    required this.highlightRange,
+    required this.style,
+    required this.onWordTap,
+  });
+
+  final String text;
+  final String highlightTerm;
+  final _HighlightRange? highlightRange;
+  final TextStyle? style;
+  final void Function(String word, int start, int end)? onWordTap;
+
+  @override
+  State<_TappableParagraph> createState() => _TappableParagraphState();
+}
+
+class _TappableParagraphState extends State<_TappableParagraph> {
+  final GlobalKey _paragraphKey = GlobalKey();
+
+  void _handleTap(TapUpDetails details) {
+    final callback = widget.onWordTap;
+    if (callback == null || widget.text.isEmpty) {
+      return;
+    }
+
+    final renderObject = _paragraphKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderParagraph) {
+      return;
+    }
+
+    final localOffset = renderObject.globalToLocal(details.globalPosition);
+    final textPosition = renderObject.getPositionForOffset(localOffset);
+    final bounds = _wordBoundsAt(widget.text, textPosition.offset);
+    if (bounds == null) {
+      return;
+    }
+
+    final word = widget.text.substring(bounds.start, bounds.end);
+    callback(word, bounds.start, bounds.end);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.style == null) {
+      return Text(widget.text);
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapUp: widget.onWordTap == null ? null : _handleTap,
+      child: RichText(
+        key: _paragraphKey,
+        text: _buildHighlightedText(
+          context,
+          text: widget.text,
+          highlightTerm: widget.highlightTerm,
+          highlightRange: widget.highlightRange,
+          style: widget.style!,
+        ),
+      ),
+    );
+  }
+}
+
+TextSpan _buildHighlightedText(
   BuildContext context, {
   required String text,
   required String highlightTerm,
-  required TextStyle? style,
+  required _HighlightRange? highlightRange,
+  required TextStyle style,
 }) {
-  if (highlightTerm.trim().isEmpty || style == null) {
-    return Text(text, style: style);
+  final highlightColor = Theme.of(
+    context,
+  ).colorScheme.primary.withValues(alpha: 0.2);
+  if (highlightRange != null) {
+    final start = highlightRange.start.clamp(0, text.length).toInt();
+    final end = highlightRange.end.clamp(start, text.length).toInt();
+    if (end > start) {
+      final spans = <TextSpan>[
+        if (start > 0) TextSpan(text: text.substring(0, start), style: style),
+        TextSpan(
+          text: text.substring(start, end),
+          style: style.copyWith(backgroundColor: highlightColor),
+        ),
+        if (end < text.length)
+          TextSpan(text: text.substring(end), style: style),
+      ];
+      return TextSpan(children: spans);
+    }
+  }
+
+  if (highlightTerm.trim().isEmpty) {
+    return TextSpan(text: text, style: style);
   }
 
   final expression = RegExp(RegExp.escape(highlightTerm), caseSensitive: false);
   final matches = expression.allMatches(text).toList();
   if (matches.isEmpty) {
-    return Text(text, style: style);
+    return TextSpan(text: text, style: style);
   }
 
-  final highlightColor = Theme.of(
-    context,
-  ).colorScheme.primary.withValues(alpha: 0.2);
   final spans = <TextSpan>[];
   var cursor = 0;
   for (final match in matches) {
@@ -725,5 +983,56 @@ Widget _buildHighlightedParagraph(
     spans.add(TextSpan(text: text.substring(cursor), style: style));
   }
 
-  return RichText(text: TextSpan(children: spans));
+  return TextSpan(children: spans);
+}
+
+bool _isWordCharacter(String char) {
+  return PolyglotWordTokenUtils.isWordCharacter(char);
+}
+
+_WordBounds? _wordBoundsAt(String text, int offset) {
+  if (text.isEmpty) {
+    return null;
+  }
+  final safeOffset = offset.clamp(0, text.length - 1);
+  var index = safeOffset;
+
+  if (!_isWordCharacter(text[index])) {
+    if (index > 0 && _isWordCharacter(text[index - 1])) {
+      index--;
+    } else if (index + 1 < text.length && _isWordCharacter(text[index + 1])) {
+      index++;
+    } else {
+      return null;
+    }
+  }
+
+  var start = index;
+  while (start > 0 && _isWordCharacter(text[start - 1])) {
+    start--;
+  }
+
+  var end = index + 1;
+  while (end < text.length && _isWordCharacter(text[end])) {
+    end++;
+  }
+
+  if (start >= end) {
+    return null;
+  }
+  return _WordBounds(start: start, end: end);
+}
+
+class _HighlightRange {
+  const _HighlightRange({required this.start, required this.end});
+
+  final int start;
+  final int end;
+}
+
+class _WordBounds {
+  const _WordBounds({required this.start, required this.end});
+
+  final int start;
+  final int end;
 }

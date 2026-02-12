@@ -1,6 +1,6 @@
 # nEUws Backend Schema (Polyglot Reader + Vocab)
 
-Last updated: February 11, 2026
+Last updated: February 12, 2026
 
 ## 0) Agent Quick Start (Required)
 
@@ -9,9 +9,10 @@ This file is the backend source of truth for the polyglot reader + vocab system.
 If you are an agent changing backend-related code, read these files in order:
 
 1. `docs/backend_schema.md` (this file)
-2. `lib/repositories/article_repository.dart`
-3. `lib/repositories/supabase/supabase_article_repository.dart`
-4. `lib/models/article_bundle.dart` and related models in `lib/models/`
+2. `docs/ai_article_publish_contract.md`
+3. `lib/repositories/article_repository.dart`
+4. `lib/repositories/supabase/supabase_article_repository.dart`
+5. `lib/models/article_bundle.dart` and related models in `lib/models/`
 
 Non-negotiable rules:
 
@@ -22,6 +23,15 @@ Non-negotiable rules:
 
 ## Change Log
 
+- 2026-02-12: Reader mapping is now strict no-guess mode: tap mapping should resolve via token ids + canonical token edges, with explicit `No reliable match` UI state when data is missing.
+- 2026-02-12: Updated publishing contract to remove read-time metadata and publisher-driven `top_lang`/`bottom_lang`; reader language pair remains user setting at fetch time.
+- 2026-02-12: Added explicit AI publishing handoff contract (`docs/ai_article_publish_contract.md`) with exact payload schema, write order, RPC usage, and token-ID response queries.
+- 2026-02-12: Added token-alignment materializer migration (`20260212170000_polyglot_token_alignment_materialize.sql`) with `rebuild_article_token_alignments(uuid, text)` to derive canonical->target token edges from alignment units + token bounds.
+- 2026-02-12: Updated app article bundle contract to carry per-localization token payloads (`canonicalTokens`, `topTokens`, `bottomTokens`) and optional token alignment edges for deterministic tap mapping and future learning features.
+- 2026-02-12: Added token-graph migration (`20260212153000_polyglot_token_graph.sql`) with per-localization token occurrences, token->vocab candidate links, canonical token alignment table, and SQL rebuild/link functions (`rebuild_article_token_graph`) for cross-article learning integration.
+- 2026-02-12: Added alignment quality guardrails and Unicode orthography requirements for polyglot seeds/runtime mapping (no coarse 2-3 chunk alignment placeholders for tap translation, no ASCII transliteration for localized text/forms).
+- 2026-02-11: Added article legacy-reader compatibility migration (`20260211113000_articles_legacy_reader_compat.sql`) to restore additive `articles` fallback fields used by current reader path (`language_top`, `language_bottom`, `body_top`, `body_bottom`, and related metadata columns).
+- 2026-02-11: Added dedicated polyglot article+word coverage seed script (`docs/supabase_article_word_coverage_seed.sql`) with multilingual localizations, canonical alignments, focus vocab/forms/entries, vocab spans, and sample word collection progress.
 - 2026-02-11: Added Quiz Clash random-opponent bot migration (`20260211101500_quiz_clash_random_bot_mode.sql`) with dedicated bot profile registry, random->bot immediate match creation, and bot auto-turn progression RPCs for development pacing.
 - 2026-02-10: Added Quiz Clash async-duel migrations (`20260210152000_quiz_clash_core.sql`, `20260210153000_quiz_clash_rpcs.sql`, `20260210154000_quiz_clash_seed.sql`) with turn-based rounds, 48h timeout forfeit flow, and realtime table publication.
 - 2026-02-10: Added Quiz Clash seed coverage in `docs/supabase_minimal_seed.sql` and `docs/supabase_rich_seed.sql` (categories + question bank + seeded match state).
@@ -52,11 +62,16 @@ erDiagram
   article_localizations ||--o{ article_alignments : to
   articles ||--o{ article_focus_vocab : has
   articles ||--o{ article_vocab_spans : has
+  article_localizations ||--o{ article_localization_tokens : tokenizes
+  article_localization_tokens ||--o{ article_token_vocab_links : links_to_vocab
+  article_localization_tokens ||--o{ article_token_alignments : canonical_token
+  article_localizations ||--o{ article_token_alignments : target_localization
 
   vocab_items ||--o{ vocab_forms : has
   vocab_items ||--o{ vocab_entries : has
   vocab_items ||--o{ article_focus_vocab : used_in
   vocab_items ||--o{ article_vocab_spans : highlighted_in
+  vocab_items ||--o{ article_token_vocab_links : candidate_for_token
 
   profiles ||--o{ user_vocab_progress : tracks
   profiles ||--o{ user_vocab_events : logs
@@ -83,10 +98,19 @@ FR tap -> align FR -> canonical -> align canonical -> SV
 - Alignment strategy: Store alignment packs as JSON with canonical-to-translation spans.
   - Alignment packs are directional and stored per localization pair.
   - Inversion is computed at runtime (canonical <-> local).
+  - Seed and publishing quality rule: do not store only 2-3 coarse body-wide chunks for reader tap mapping; units must be fine-grained (sentence/token/window level).
 - Text offset encoding: UTF-16 code unit offsets everywhere (Dart / Flutter native).
 - Vocab item definition: A "vocab item" represents a canonical lemma + POS.
   - Language-specific forms (surface/lemma variants) live in `vocab_forms`.
   - Language-specific definitions/notes/examples live in `vocab_entries`.
+- Token identity model:
+  - Global learning identity is `vocab_items.id` (cross-article, cross-language).
+  - Occurrence identity is `article_localization_tokens.id` (exact token in one localization/body position).
+  - Bridge table `article_token_vocab_links` stores candidate mappings with confidence/rank.
+- Article media contract:
+  - `hero_image_url` is the canonical article hero image field.
+  - `image_asset` is legacy compatibility only and should mirror `hero_image_url` if still populated.
+- Localization text quality: preserve native orthography in localized content/forms (`å`, `ä`, `ö`, `é`, `ç`, `ü`, etc.); avoid ASCII transliteration in seeds/publishing outputs.
 - XP and streak architecture:
   - XP is append-only in `xp_ledger`; `user_progression` is derived/aggregated state.
   - Streaks derive from `streak_events` + DB trigger logic (not client-side counters).
@@ -111,6 +135,9 @@ Migration files (authoritative executable SQL):
 - `supabase/migrations/20260210153000_quiz_clash_rpcs.sql`
 - `supabase/migrations/20260210154000_quiz_clash_seed.sql`
 - `supabase/migrations/20260211101500_quiz_clash_random_bot_mode.sql`
+- `supabase/migrations/20260211113000_articles_legacy_reader_compat.sql`
+- `supabase/migrations/20260212153000_polyglot_token_graph.sql`
+- `supabase/migrations/20260212170000_polyglot_token_alignment_materialize.sql`
 
 The SQL block below is a conceptual core snapshot. Use migration files above as executable source of truth.
 
@@ -125,7 +152,6 @@ create table if not exists articles (
   category text,
   country_code text,
   country_tags text[],
-  read_time_minutes int,
   image_asset text,
   hero_image_url text,
   language_top text,
@@ -211,6 +237,44 @@ create table if not exists article_vocab_spans (
   localization_id uuid not null references article_localizations(id) on delete cascade,
   spans_json jsonb not null,
   unique (article_id, vocab_item_id, localization_id)
+);
+
+create table if not exists article_localization_tokens (
+  id uuid primary key default gen_random_uuid(),
+  article_id uuid not null references articles(id) on delete cascade,
+  localization_id uuid not null references article_localizations(id) on delete cascade,
+  token_index int not null,
+  start_utf16 int not null,
+  end_utf16 int not null,
+  surface text not null,
+  normalized_surface text not null,
+  lemma_hint text,
+  pos_hint text,
+  created_at timestamptz default now(),
+  unique (localization_id, token_index)
+);
+
+create table if not exists article_token_vocab_links (
+  token_id uuid not null references article_localization_tokens(id) on delete cascade,
+  vocab_item_id uuid not null references vocab_items(id) on delete cascade,
+  candidate_rank int not null default 1,
+  is_primary boolean not null default false,
+  match_type text not null,
+  confidence numeric,
+  link_source text not null default 'pipeline',
+  created_at timestamptz default now(),
+  primary key (token_id, vocab_item_id)
+);
+
+create table if not exists article_token_alignments (
+  article_id uuid not null references articles(id) on delete cascade,
+  canonical_token_id uuid not null references article_localization_tokens(id) on delete cascade,
+  target_localization_id uuid not null references article_localizations(id) on delete cascade,
+  target_token_id uuid not null references article_localization_tokens(id) on delete cascade,
+  score numeric,
+  algo_version text,
+  created_at timestamptz default now(),
+  primary key (canonical_token_id, target_token_id)
 );
 
 -- Users
@@ -351,12 +415,27 @@ When opening an article (polyglot reader):
 3. `article_alignments` where `from_localization_id = canonical` and `to_localization_id` in {top, bottom}.
 4. `article_focus_vocab` -> `vocab_items`, `vocab_entries` for UI language, `vocab_forms` for top/bottom languages.
 5. `article_vocab_spans` for focus vocab (optional; used for inline highlight and word collection).
+6. Optional token-graph read path for advanced learning UX:
+   - `article_localization_tokens` for precise token offsets in each localization.
+   - `article_token_vocab_links` to map tapped/visible token -> global `vocab_items` candidates.
+   - `article_token_alignments` for precomputed canonical->target token mapping.
+
+Reader interaction contract:
+
+- Default top/bottom reader languages come from user settings (`user_settings.reading_lang_top`, `user_settings.reading_lang_bottom`).
+- Inline word interaction is tap-first in article body; word taps should trigger same-side highlight plus mapped counterpart highlight in the opposite language view.
+- Focus/key vocab chips are a secondary aid and should be placed in the lower "key words" section, not as the primary top-of-article interaction.
+- Runtime mapping must be confidence-gated and deterministic: use token ids + canonical->target token edges as the source of truth.
+- The reader must not guess cross-language matches from loose text similarity or nearest-word heuristics when token mapping is missing.
+- If mapping is unavailable, show an explicit `No reliable match` state instead of returning a guessed translation.
+- Publishing pipeline must provide token alignment coverage for function words/prepositions too, so reader taps do not need heuristic fallbacks.
 
 Current app contract mapping:
 
 - Existing screen path still uses legacy detail fields through `getArticleDetailBySlug`.
 - New polyglot/vocab bundle path is `getArticleBundleBySlug(slug, topLang, bottomLang, uiLang)`.
-- Bundle model includes canonical/top/bottom localizations, canonical->top and canonical->bottom alignment packs, and focus vocab payload.
+- Bundle model includes canonical/top/bottom localizations, canonical->top and canonical->bottom alignment packs, focus vocab payload, and per-localization token arrays (`canonicalTokens`, `topTokens`, `bottomTokens`) with stable token ids + UTF-16 bounds.
+- Bundle model also includes optional canonical->target token edge arrays (`tokenAlignmentsToTop`, `tokenAlignmentsToBottom`) when `article_token_alignments` is populated.
 - Games repository now exposes:
   - `getSudokuSkillRounds()`
   - `getSudokuRoundBySkillPoint(skillPoint)`
@@ -469,10 +548,15 @@ Storage is in Supabase; heavy computation is in an external worker/service:
 1. Read canonical localization from Supabase.
 2. Generate translations (LLM/API).
 3. Compute canonical->translation alignment packs (LLM or alignment model).
-4. Select 3-5 focus vocab items (human or LLM suggestion + approval).
-5. Generate vocab entries per language (definitions/notes/examples).
-6. Compute article_vocab_spans per localization.
-7. Write results back to Supabase and mark `publishing_jobs` complete.
+   - Minimum quality gate: produce fine-grained units suitable for word taps; avoid placeholder whole-body chunks.
+4. Tokenize each localization into UTF-16 token occurrences (`article_localization_tokens`).
+5. Link tokens to global vocabulary candidates (`article_token_vocab_links`) with confidence + rank.
+6. Optional: materialize canonical->target token alignments (`article_token_alignments`) for fast pair mapping.
+7. Select 3-5 focus vocab items (human or LLM suggestion + approval).
+8. Generate vocab entries per language (definitions/notes/examples).
+   - Preserve language-native orthography in forms and localized text.
+9. Compute article_vocab_spans per localization.
+10. Write results back to Supabase and mark `publishing_jobs` complete.
 
 Edge Function may start a job by creating `publishing_jobs` rows, but heavy work must run off-platform.
 
@@ -737,6 +821,9 @@ Strict run order:
 12. `20260210153000_quiz_clash_rpcs.sql`
 13. `20260210154000_quiz_clash_seed.sql`
 14. `20260211101500_quiz_clash_random_bot_mode.sql`
+15. `20260211113000_articles_legacy_reader_compat.sql`
+16. `20260212153000_polyglot_token_graph.sql`
+17. `20260212170000_polyglot_token_alignment_materialize.sql`
 
 If legacy drift blocks setup, use this clean reset (drops only neuws domain tables, not `auth.users`, not base `profiles`/`articles`):
 
@@ -848,6 +935,16 @@ Use these scripts after migrations when app surfaces are empty or failing due to
   - schema-adaptive enum coercion + required-column guards for drifted projects
   - bootstraps `public-media` storage bucket + policies for profile image testing
   - prints seeded account credentials at the end for quick sign-in
+- `docs/supabase_article_word_coverage_seed.sql`
+  - upgrades article + word validation coverage for polyglot reader and collection flows
+  - seeds 6 multilingual article contracts with canonical localizations and canonical->target alignments
+  - uses native orthography in localizations/forms (no ASCII transliteration fallback text)
+  - uses short rolling alignment windows for tap-mapping-safe granularity
+  - if token graph migration is present, materializes `article_localization_tokens` + `article_token_vocab_links` via `rebuild_article_token_graph`
+  - if token alignment materializer migration is present, materializes `article_token_alignments` via `rebuild_article_token_alignments`
+  - seeds per-article focus vocab, per-language forms/entries, and `article_vocab_spans`
+  - seeds sample `user_vocab_events` + `user_vocab_progress` rows for tester accounts
+  - prints article/language/vocab verification rows after execution
 
 Suggested order:
 
@@ -856,4 +953,10 @@ Suggested order:
 3. run one seed pack:
    - minimal: `docs/supabase_minimal_seed.sql`
    - full UX/content testing: `docs/supabase_rich_seed.sql`
+   - article/word deep validation add-on: `docs/supabase_article_word_coverage_seed.sql`
 4. run `docs/supabase_smoke_check.sql` again and verify non-zero content counts
+
+Execution notes:
+
+- Seed scripts use temporary tables with `on commit drop`; when running with `psql`, execute in one transaction (`psql -1 -f ...`) so temp tables persist for the full script.
+- If `docs/supabase_rich_seed.sql` is run after `docs/supabase_article_word_coverage_seed.sql`, run the coverage seed again to restore long-form localization + alignment/token-graph consistency for polyglot tap mapping.

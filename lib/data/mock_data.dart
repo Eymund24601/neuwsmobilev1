@@ -81,7 +81,6 @@ class ArticleContent {
     required this.imageAsset,
     required this.topic,
     required this.excerpt,
-    required this.readTime,
     required this.authorName,
     required this.authorLocation,
     required this.languageTop,
@@ -96,7 +95,6 @@ class ArticleContent {
   final String imageAsset;
   final String topic;
   final String excerpt;
-  final String readTime;
   final String authorName;
   final String authorLocation;
   final String languageTop;
@@ -217,7 +215,6 @@ class HomeMockData {
     topic: 'World Politics',
     excerpt:
         'For three years, Xi Jinping has been removing top military figures, reshaping command and raising new questions across Europe.',
-    readTime: '6 min read',
     authorName: 'Marta Keller',
     authorLocation: 'Vienna, Austria',
     languageTop: 'Swedish',

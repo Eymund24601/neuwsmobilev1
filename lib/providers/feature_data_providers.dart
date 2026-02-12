@@ -852,6 +852,8 @@ class SettingsNotifier extends UserScopedCachedAsyncNotifier<AppSettings> {
     final map = payload as Map<String, dynamic>;
     return AppSettings(
       readingLanguage: map['readingLanguage'] as String,
+      readingTopLanguage: map['readingTopLanguage'] as String? ?? 'en',
+      readingBottomLanguage: map['readingBottomLanguage'] as String? ?? 'sv',
       notificationsEnabled: map['notificationsEnabled'] as bool,
       offlineModeEnabled: map['offlineModeEnabled'] as bool,
     );
@@ -861,6 +863,8 @@ class SettingsNotifier extends UserScopedCachedAsyncNotifier<AppSettings> {
   Object encodePayload(AppSettings value) {
     return {
       'readingLanguage': value.readingLanguage,
+      'readingTopLanguage': value.readingTopLanguage,
+      'readingBottomLanguage': value.readingBottomLanguage,
       'notificationsEnabled': value.notificationsEnabled,
       'offlineModeEnabled': value.offlineModeEnabled,
     };

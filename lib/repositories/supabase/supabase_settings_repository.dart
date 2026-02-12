@@ -14,6 +14,8 @@ class SupabaseSettingsRepository implements SettingsRepository {
     if (authUser == null) {
       return const AppSettings(
         readingLanguage: 'English',
+        readingTopLanguage: 'en',
+        readingBottomLanguage: 'sv',
         notificationsEnabled: true,
         offlineModeEnabled: false,
       );
@@ -23,7 +25,9 @@ class SupabaseSettingsRepository implements SettingsRepository {
     try {
       row = await _client
           .from('user_settings')
-          .select('reading_lang_top,push_notifications_enabled')
+          .select(
+            'ui_lang,reading_lang_top,reading_lang_bottom,push_notifications_enabled',
+          )
           .eq('user_id', authUser.id)
           .maybeSingle();
     } on PostgrestException {
@@ -31,10 +35,21 @@ class SupabaseSettingsRepository implements SettingsRepository {
     }
 
     if (row != null) {
+      final topLang = _normalizeLangCode(
+        SupabaseMappingUtils.stringValue(row, const ['reading_lang_top']),
+        fallback: 'en',
+      );
+      final bottomLang = _normalizeLangCode(
+        SupabaseMappingUtils.stringValue(row, const ['reading_lang_bottom']),
+        fallback: topLang == 'en' ? 'sv' : 'en',
+      );
       return AppSettings(
         readingLanguage: SupabaseMappingUtils.stringValue(row, const [
+          'ui_lang',
           'reading_lang_top',
         ], fallback: 'English'),
+        readingTopLanguage: topLang,
+        readingBottomLanguage: bottomLang,
         notificationsEnabled: SupabaseMappingUtils.boolValue(row, const [
           'push_notifications_enabled',
         ], fallback: true),
@@ -51,15 +66,23 @@ class SupabaseSettingsRepository implements SettingsRepository {
     if (fallbackRow == null) {
       return const AppSettings(
         readingLanguage: 'English',
+        readingTopLanguage: 'en',
+        readingBottomLanguage: 'sv',
         notificationsEnabled: true,
         offlineModeEnabled: false,
       );
     }
 
+    final topLang = _normalizeLangCode(
+      SupabaseMappingUtils.stringValue(fallbackRow, const ['reading_language']),
+      fallback: 'en',
+    );
     return AppSettings(
       readingLanguage: SupabaseMappingUtils.stringValue(fallbackRow, const [
         'reading_language',
       ], fallback: 'English'),
+      readingTopLanguage: topLang,
+      readingBottomLanguage: topLang == 'en' ? 'sv' : 'en',
       notificationsEnabled: SupabaseMappingUtils.boolValue(fallbackRow, const [
         'notifications_enabled',
       ], fallback: true),
@@ -79,7 +102,9 @@ class SupabaseSettingsRepository implements SettingsRepository {
     try {
       await _client.from('user_settings').upsert({
         'user_id': authUser.id,
-        'reading_lang_top': settings.readingLanguage,
+        'ui_lang': settings.readingLanguage,
+        'reading_lang_top': settings.readingTopLanguage,
+        'reading_lang_bottom': settings.readingBottomLanguage,
         'push_notifications_enabled': settings.notificationsEnabled,
       });
       return;
@@ -95,5 +120,30 @@ class SupabaseSettingsRepository implements SettingsRepository {
           'offline_mode_enabled': settings.offlineModeEnabled,
         })
         .eq('id', authUser.id);
+  }
+
+  String _normalizeLangCode(String value, {required String fallback}) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return fallback;
+    }
+    switch (normalized) {
+      case 'english':
+        return 'en';
+      case 'swedish':
+        return 'sv';
+      case 'french':
+        return 'fr';
+      case 'german':
+        return 'de';
+      case 'spanish':
+        return 'es';
+      case 'italian':
+        return 'it';
+      case 'portuguese':
+        return 'pt';
+      default:
+        return normalized;
+    }
   }
 }

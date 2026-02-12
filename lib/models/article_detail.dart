@@ -9,7 +9,6 @@ class ArticleDetail {
     required this.imageAsset,
     required this.topic,
     required this.excerpt,
-    required this.readTime,
     required this.authorName,
     required this.authorLocation,
     required this.languageTop,
@@ -25,7 +24,6 @@ class ArticleDetail {
   final String imageAsset;
   final String topic;
   final String excerpt;
-  final String readTime;
   final String authorName;
   final String authorLocation;
   final String languageTop;
@@ -42,7 +40,6 @@ class ArticleDetail {
       imageAsset: json['imageAsset'] as String,
       topic: json['topic'] as String,
       excerpt: json['excerpt'] as String,
-      readTime: json['readTime'] as String,
       authorName: json['authorName'] as String,
       authorLocation: json['authorLocation'] as String,
       languageTop: json['languageTop'] as String,
@@ -61,7 +58,6 @@ class ArticleDetail {
       'imageAsset': imageAsset,
       'topic': topic,
       'excerpt': excerpt,
-      'readTime': readTime,
       'authorName': authorName,
       'authorLocation': authorLocation,
       'languageTop': languageTop,
@@ -79,7 +75,6 @@ class ArticleDetail {
       imageAsset: imageAsset,
       topic: topic,
       excerpt: excerpt,
-      readTime: readTime,
       authorName: authorName,
       authorLocation: authorLocation,
       languageTop: languageTop,

@@ -1,6 +1,6 @@
 # Supabase Connection Guide (App + Agent SQL)
 
-Last updated: February 10, 2026
+Last updated: February 12, 2026
 
 ## 1) Two different connection paths
 
@@ -47,6 +47,13 @@ Then connect:
 ```powershell
 . .\.env\supabase.remote.ps1
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h $env:PGHOST -p $env:PGPORT -U $env:PGUSER -d $env:PGDATABASE -c "select now();"
+```
+
+Run seed scripts in one transaction (required for scripts that use temp tables with `on commit drop`):
+
+```powershell
+. .\.env\supabase.remote.ps1
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -1 -h $env:PGHOST -p $env:PGPORT -U $env:PGUSER -d $env:PGDATABASE -v ON_ERROR_STOP=1 -f docs/supabase_article_word_coverage_seed.sql
 ```
 
 ## 4) Common errors and fixes

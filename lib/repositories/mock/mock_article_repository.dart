@@ -3,6 +3,7 @@ import '../../models/article_bundle.dart';
 import '../../models/article_detail.dart';
 import '../../models/article_localization.dart';
 import '../../models/article_summary.dart';
+import '../../models/article_token_graph.dart';
 import '../../models/topic_feed.dart';
 import '../../models/vocab_models.dart';
 import '../article_repository.dart';
@@ -16,7 +17,6 @@ class MockArticleRepository implements ArticleRepository {
           'Is Your Social Life Missing Something? This Conversation Is for You.',
       topic: 'Lifestyle',
       countryCode: 'SE,DK,NO',
-      readTimeMinutes: 6,
       publishedAtLabel: 'FEBRUARY 3, 2026',
       isPremium: false,
     ),
@@ -27,7 +27,6 @@ class MockArticleRepository implements ArticleRepository {
           'How Communities Defend Elections Without Waiting for Institutions',
       topic: 'Opinion',
       countryCode: 'DE,AT',
-      readTimeMinutes: 7,
       publishedAtLabel: 'FEBRUARY 2, 2026',
       isPremium: true,
     ),
@@ -37,7 +36,6 @@ class MockArticleRepository implements ArticleRepository {
       title: 'A Night Train Diary Through the Baltics',
       topic: 'Lifestyle',
       countryCode: 'LV,LT,EE',
-      readTimeMinutes: 5,
       publishedAtLabel: 'FEBRUARY 1, 2026',
       isPremium: false,
     ),
@@ -47,7 +45,6 @@ class MockArticleRepository implements ArticleRepository {
       title: 'Why Porto Feels Like the Future of Cities',
       topic: 'Tech',
       countryCode: 'PT',
-      readTimeMinutes: 8,
       publishedAtLabel: 'JANUARY 31, 2026',
       isPremium: true,
     ),
@@ -63,7 +60,6 @@ class MockArticleRepository implements ArticleRepository {
       topic: 'World Politics',
       excerpt:
           'For three years, Xi Jinping has been removing top military figures, reshaping command and raising new questions across Europe.',
-      readTime: '6 min read',
       authorName: 'Marta Keller',
       authorLocation: 'Vienna, Austria',
       languageTop: 'Swedish',
@@ -83,7 +79,6 @@ class MockArticleRepository implements ArticleRepository {
       topic: 'Opinion',
       excerpt:
           'Local groups across Europe are stress-testing election systems before campaigns heat up.',
-      readTime: '7 min read',
       authorName: 'Lukas Brenner',
       authorLocation: 'Berlin, Germany',
       languageTop: 'German',
@@ -102,7 +97,6 @@ class MockArticleRepository implements ArticleRepository {
       topic: 'Lifestyle',
       excerpt:
           'A creator follows overnight routes from Riga to Vilnius and maps the conversations in each carriage.',
-      readTime: '5 min read',
       authorName: 'Lea Novak',
       authorLocation: 'Ljubljana, Slovenia',
       languageTop: 'English',
@@ -121,7 +115,6 @@ class MockArticleRepository implements ArticleRepository {
       topic: 'Tech',
       excerpt:
           'Porto\'s compact planning and startup infrastructure are changing how young Europeans choose where to live.',
-      readTime: '8 min read',
       authorName: 'Miguel Sousa',
       authorLocation: 'Porto, Portugal',
       languageTop: 'Portuguese',
@@ -202,17 +195,7 @@ class MockArticleRepository implements ArticleRepository {
       version: 1,
       createdAt: DateTime.now(),
     );
-    final topLocalization = ArticleLocalization(
-      id: 'loc-$articleId-top',
-      articleId: articleId,
-      lang: topLang,
-      title: detail.title,
-      excerpt: detail.excerpt,
-      body: detail.bodyTop,
-      contentHash: 'mock-hash-top',
-      version: 1,
-      createdAt: DateTime.now(),
-    );
+    final topLocalization = canonicalLocalization;
     final bottomLocalization = ArticleLocalization(
       id: 'loc-$articleId-bottom',
       articleId: articleId,
@@ -231,6 +214,20 @@ class MockArticleRepository implements ArticleRepository {
       topLang: topLang,
       bottomLang: bottomLang,
     );
+    final canonicalTokens = _tokenizeLocalization(
+      articleId: articleId,
+      localization: canonicalLocalization,
+    );
+    final topTokens = canonicalTokens;
+    final bottomTokens = _tokenizeLocalization(
+      articleId: articleId,
+      localization: bottomLocalization,
+    );
+    final tokenAlignmentsToBottom = _alignCanonicalToTargetByIndex(
+      canonicalTokens: canonicalTokens,
+      targetTokens: bottomTokens,
+      targetLocalizationId: bottomLocalization.id,
+    );
 
     return ArticleBundle(
       articleId: articleId,
@@ -239,15 +236,7 @@ class MockArticleRepository implements ArticleRepository {
       canonicalLocalization: canonicalLocalization,
       topLocalization: topLocalization,
       bottomLocalization: bottomLocalization,
-      alignmentToTop: ArticleAlignmentPack(
-        id: 'align-top-$articleId',
-        articleId: articleId,
-        fromLocalizationId: canonicalLocalization.id,
-        toLocalizationId: topLocalization.id,
-        alignmentJson: null,
-        algoVersion: 'mock',
-        qualityScore: null,
-      ),
+      alignmentToTop: null,
       alignmentToBottom: ArticleAlignmentPack(
         id: 'align-bottom-$articleId',
         articleId: articleId,
@@ -258,7 +247,67 @@ class MockArticleRepository implements ArticleRepository {
         qualityScore: null,
       ),
       focusVocab: focusVocab,
+      canonicalTokens: canonicalTokens,
+      topTokens: topTokens,
+      bottomTokens: bottomTokens,
+      tokenAlignmentsToTop: const [],
+      tokenAlignmentsToBottom: tokenAlignmentsToBottom,
     );
+  }
+
+  List<ArticleLocalizationToken> _tokenizeLocalization({
+    required String articleId,
+    required ArticleLocalization localization,
+  }) {
+    final matches = RegExp(
+      r"[\p{L}\p{N}'’\-]+",
+      unicode: true,
+    ).allMatches(localization.body);
+    final tokens = <ArticleLocalizationToken>[];
+    var index = 0;
+    for (final match in matches) {
+      final surface = match.group(0) ?? '';
+      if (surface.isEmpty) {
+        continue;
+      }
+      index += 1;
+      tokens.add(
+        ArticleLocalizationToken(
+          id: '${localization.id}-t$index',
+          articleId: articleId,
+          localizationId: localization.id,
+          tokenIndex: index,
+          startUtf16: match.start,
+          endUtf16: match.end,
+          surface: surface,
+          normalizedSurface: surface.toLowerCase(),
+        ),
+      );
+    }
+    return tokens;
+  }
+
+  List<ArticleTokenAlignment> _alignCanonicalToTargetByIndex({
+    required List<ArticleLocalizationToken> canonicalTokens,
+    required List<ArticleLocalizationToken> targetTokens,
+    required String targetLocalizationId,
+  }) {
+    final out = <ArticleTokenAlignment>[];
+    final limit = canonicalTokens.length < targetTokens.length
+        ? canonicalTokens.length
+        : targetTokens.length;
+    for (var i = 0; i < limit; i++) {
+      out.add(
+        ArticleTokenAlignment(
+          canonicalTokenId: canonicalTokens[i].id,
+          targetLocalizationId: targetLocalizationId,
+          targetTokenId: targetTokens[i].id,
+          score: 0.7,
+          algoVersion: 'mock-index-v1',
+        ),
+      );
+    }
+    return out;
   }
 
   ArticleFocusVocab _buildMockFocusVocab({

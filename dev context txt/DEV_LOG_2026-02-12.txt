@@ -1,0 +1,207 @@
+NEUWS MOBILE DEV LOG
+Date: February 12, 2026
+Session Focus: Polyglot reader correction pass (tap-first interaction, language defaults, long-form content seed)
+
+==================================================
+1) Trigger / User Feedback
+==================================================
+- User reported major regressions after initial article+word baseline seed:
+  - article bodies too short to validate split-scroll behavior,
+  - body text words were not tappable (interaction incorrectly centered on top chips),
+  - language flags were blank/non-functional and did not rebind article localizations,
+  - reader defaults did not follow per-user language settings.
+
+==================================================
+2) Product Behavior Corrections Implemented
+==================================================
+- Reader interaction model fixed to "tap in text first":
+  - word taps now resolve to cross-language highlighting.
+  - key words remain available but are moved to bottom section as secondary affordance.
+- Language switching fixed:
+  - top/bottom language selector now triggers bundle reload with new language pair.
+  - selector labels map correctly from language names/codes.
+- Reader defaults fixed:
+  - top/bottom defaults now come from `user_settings.reading_lang_top` + `reading_lang_bottom`.
+  - not hardcoded from article fields.
+
+==================================================
+3) App Code Changes
+==================================================
+- `lib/screens/article_page.dart`
+  - replaced chip-first interaction with tappable body text interaction.
+  - added tap-to-word extraction using paragraph hit testing.
+  - added highlight state driven by body taps.
+  - moved "Key words" section below article body.
+  - language flag controls now use externally provided selected languages and callbacks.
+- `lib/screens/article_entry_page.dart`
+  - converted to stateful entry page with active top/bottom language selection.
+  - pulls default top/bottom language from `settingsProvider`.
+  - persists language changes through `settingsProvider.notifier.save(...)`.
+  - added tap resolver:
+    - direct focus-vocab form match first,
+    - alignment-based canonical routing fallback second (`source -> canonical -> target`).
+- `lib/repositories/settings_repository.dart`
+  - expanded `AppSettings` with:
+    - `readingTopLanguage`
+    - `readingBottomLanguage`
+- `lib/repositories/supabase/supabase_settings_repository.dart`
+  - reads/writes:
+    - `ui_lang`
+    - `reading_lang_top`
+    - `reading_lang_bottom`
+  - normalizes language labels/codes.
+- `lib/providers/feature_data_providers.dart`
+  - cache encode/decode updated for new AppSettings fields.
+- `lib/repositories/mock/mock_settings_repository.dart`
+  - updated mock defaults to include top/bottom languages.
+
+==================================================
+4) Seed/Data Corrections
+==================================================
+- `docs/supabase_article_word_coverage_seed.sql`
+  - updated to enforce long-form localization bodies for scroll stress testing:
+    - repeated body text expansion to exceed 500 words/localization.
+  - added deterministic user-settings upsert for Edvin account:
+    - `reading_lang_top = en`
+    - `reading_lang_bottom = sv`
+    - `ui_lang = English`
+- Supabase execution:
+  - reran full seed in one transaction (`psql -1`) on hosted project.
+  - verified seeded localizations are 500+ words.
+
+==================================================
+5) Documentation Updates
+==================================================
+- `README.md`
+  - added "Polyglot Reader Contract" section clarifying:
+    - 500+ word localization target for reader testing,
+    - settings-driven top/bottom defaults,
+    - tap-first body interaction,
+    - key words as bottom secondary surface.
+- `docs/backend_schema.md`
+  - added reader interaction contract notes in query/contract section.
+
+==================================================
+6) Hosted Supabase Verification
+==================================================
+- Re-seeded article matrix remained stable:
+  - 6 core seeded polyglot articles
+  - 3 localizations/article
+  - canonical->target alignments
+  - focus vocab + spans persisted
+- Verified long-form bodies:
+  - localization word counts ranged roughly 500-840.
+- Verified user settings row:
+  - `edvin@kollberg.se`: `en/sv`, `ui_lang = English`.
+
+==================================================
+7) Validation
+==================================================
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+
+==================================================
+8) Notes
+==================================================
+- Tap-to-counterpart mapping currently prioritizes:
+  1) explicit focus vocab form match,
+  2) alignment-unit fallback (center-point mapping).
+- This keeps behavior responsive and contract-compliant while avoiding heavy runtime pairwise precomputation.
+
+==================================================
+9) Token Graph Bundle Addendum (Same Date)
+==================================================
+Session Focus: deterministic token-id payloads for active language pair and token-first tap mapping path.
+
+Implemented:
+- `ArticleBundle` contract expanded with token graph payloads:
+  - `canonicalTokens`, `topTokens`, `bottomTokens`
+  - `tokenAlignmentsToTop`, `tokenAlignmentsToBottom` (optional if table populated)
+- Supabase article bundle query now reads:
+  - `article_localization_tokens`
+  - primary token->vocab link candidates via `article_token_vocab_links`
+  - optional token alignments via `article_token_alignments`
+- Reader tap path now prioritizes token ids:
+  1. resolve tapped source token by UTF-16 offset,
+  2. try precomputed canonical->target token edge mapping,
+  3. fallback to shared global vocab item id mapping,
+  4. fallback to bounded alignment-range mapping.
+
+Outcome:
+- Backend can return article X in language pair Z/Y with stable token ids for each visible localization.
+- Contract is now compatible with future cross-article learning prompts keyed by global vocab ids and per-article token occurrences.
+
+==================================================
+10) Phrase-Mapping Guardrail Addendum (Same Date)
+==================================================
+Trigger:
+- Real tap case showed Swedish function/content phrase ambiguity ("plats för gemenskap") still producing misleading single-word highlights ("community" for taps on "för"/"plats").
+
+Implemented:
+- Tap resolver now applies stricter token-edge trust:
+  - shared global vocab mapping first,
+  - token-edge mapping only when source token has a global vocab id,
+  - reject token-edge hit when source/target vocab ids disagree.
+- Added phrase-level fallback for low-confidence tokens:
+  - if token has no global vocab id and is short/stopword, map a local phrase window instead of forcing a single token.
+  - trims stopwords at phrase edges in target language.
+
+Reasoning:
+- Cross-language mappings are not always one-token-to-one-token.
+- Function words and many-to-one/one-to-many translations must degrade to phrase highlights until lexical coverage and token alignment quality are high enough.
+
+==================================================
+11) AI Publish Contract Doc Addendum (Same Date)
+==================================================
+Implemented:
+- Added `docs/ai_article_publish_contract.md` with strict instructions for external AI publishers:
+  - required JSON package shape (`publish_package_v1`),
+  - exact Supabase write order,
+  - required RPC materialization calls for token graph + token alignments,
+  - required response queries to return token IDs per localization,
+  - quality gates and failure criteria.
+- Updated `docs/backend_schema.md` quick-start read order and change log to reference the new contract doc.
+
+==================================================
+12) Strict No-Guess Mapping + Contract Clarifications (Same Date)
+==================================================
+Trigger:
+- User reported persistent incorrect tap mappings in production-like reader flows
+  (example: Swedish token taps resolving to unrelated English tokens).
+- User also requested clarification/fixes for publisher contract fields
+  (remove read-time fields and clarify image field ownership).
+
+Implemented (App):
+- `lib/screens/article_entry_page.dart`
+  - removed heuristic/guess-based fallback behavior in tap resolver.
+  - resolver now returns only deterministic mappings from token graph/canonical routing.
+  - when mapping confidence is not sufficient, it returns no match (instead of guessing).
+- `lib/screens/article_page.dart`
+  - added explicit user-facing no-match state:
+    - `No reliable match for this tap.`
+  - added range-based highlighting support so phrase/token spans can be highlighted exactly.
+  - preserved regex term highlight as fallback for non-range interactions.
+- `lib/services/polyglot/word_token_utils.dart`
+  - improved Unicode token handling for apostrophes/word boundaries
+    to avoid malformed matching in European language text.
+
+Implemented (Docs):
+- `docs/ai_article_publish_contract.md`
+  - clarified that publishers must not send `top_lang` / `bottom_lang`
+    (reader language pair is user setting at read time).
+  - clarified `hero_image_url` vs `image_asset`:
+    - `hero_image_url` is canonical field.
+    - `image_asset` is legacy compatibility only.
+  - removed read-time metadata expectations from publish payload semantics.
+- `docs/backend_schema.md`
+  - documented strict no-guess reader behavior and explicit no-reliable-match UI expectation.
+  - documented publish-contract clarification for language-pair ownership and image fields.
+
+Validation:
+- `flutter analyze`: PASS
+- `flutter test`: PASS
+
+Scale/Reliability Decision (session outcome):
+- Keep current architecture (`source -> canonical -> target` with token graph) and harden it.
+- Do not reintroduce runtime guessing.
+- Require stronger publish-time token/mapping completeness so runtime can stay deterministic.

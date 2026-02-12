@@ -518,7 +518,6 @@ create temporary table if not exists _seed_articles (
   topic text not null,
   country_code text not null,
   country_tags text[] not null,
-  read_time_minutes int not null,
   author_key text not null,
   lang_top text not null,
   lang_bottom text not null,
@@ -530,15 +529,15 @@ create temporary table if not exists _seed_articles (
 truncate _seed_articles;
 
 insert into _seed_articles (
-  slug, title, excerpt, topic, country_code, country_tags, read_time_minutes,
+  slug, title, excerpt, topic, country_code, country_tags,
   author_key, lang_top, lang_bottom, body_top, body_bottom, published_days_ago
 )
 values
-  ('stockholm-social-infrastructure', 'How Stockholm Rebuilt Belonging Through Public Spaces', 'Neighborhood libraries, late-night sports halls, and free cultural rooms are changing social isolation metrics.', 'Culture', 'SE', array['SE', 'DK', 'NO'], 6, 'creator_anna', 'en', 'fr', 'Stockholm expanded access to public micro-spaces where residents can meet after work. The policy was simple: open doors, remove fees, and support local hosts.', 'Stockholm a elargi l''acces a des micro-espaces publics ou les residents peuvent se retrouver apres le travail. La politique etait simple: ouvrir les portes, supprimer les frais et soutenir les animateurs locaux.', 1),
-  ('vienna-election-volunteers', 'Why Vienna Is Training Election Volunteers Year-Round', 'Local organizers say resilience comes from routine drills, not crisis-only mobilization.', 'Politics', 'AT', array['AT', 'DE'], 7, 'creator_lukas', 'en', 'de', 'Volunteer coordinators in Vienna now run monthly simulation drills for polling-day disruptions. Organizers report faster response times and lower stress under pressure.', 'Freiwilligen-Teams in Wien fuehren inzwischen monatliche Uebungen fuer Stoerfaelle am Wahltag durch. Die Organisatoren melden schnellere Reaktionen und weniger Stress unter Druck.', 2),
-  ('baltic-night-train-journal', 'A Night Train Diary From Riga to Vilnius', 'A cross-border route reveals how language, pricing, and station design shape travel behavior.', 'Lifestyle', 'LV', array['LV', 'LT', 'EE'], 5, 'creator_lea', 'en', 'fr', 'The overnight route from Riga to Vilnius has become a moving forum: students, families, and shift workers all negotiate the same shared corridor.', 'La liaison de nuit entre Riga et Vilnius est devenue un forum mobile: etudiants, familles et travailleurs en horaires decales partagent le meme couloir.', 3),
-  ('porto-urban-startup-loop', 'Why Porto Feels Like a Prototype for Mid-Sized EU Cities', 'Compact commutes and dense creator networks are pulling talent outside larger capitals.', 'Tech', 'PT', array['PT', 'ES'], 8, 'creator_miguel', 'en', 'pt', 'In Porto, founders describe a practical loop: walkable neighborhoods, lower burn rates, and easier access to community mentors.', 'No Porto, fundadores descrevem um ciclo pratico: bairros caminhaveis, menores custos operacionais e acesso mais facil a mentores da comunidade.', 4),
-  ('copenhagen-climate-blocks', 'Copenhagen''s Block-Level Climate Plans Are Going Hyper-Local', 'Residents now vote on neighborhood adaptation priorities before municipal budgeting rounds.', 'Climate', 'DK', array['DK', 'SE'], 6, 'creator_sofia', 'en', 'de', 'Copenhagen tested district-level adaptation ballots where residents ranked drainage, shade, and school-route protection investments.', 'Kopenhagen testete abstimmungen auf bezirksebene, bei denen bewohner investitionen in entwasserung, schatten und sichere schulwege priorisierten.', 5);
+  ('stockholm-social-infrastructure', 'How Stockholm Rebuilt Belonging Through Public Spaces', 'Neighborhood libraries, late-night sports halls, and free cultural rooms are changing social isolation metrics.', 'Culture', 'SE', array['SE', 'DK', 'NO'], 'creator_anna', 'en', 'fr', 'Stockholm expanded access to public micro-spaces where residents can meet after work. The policy was simple: open doors, remove fees, and support local hosts.', 'Stockholm a elargi l''acces a des micro-espaces publics ou les residents peuvent se retrouver apres le travail. La politique etait simple: ouvrir les portes, supprimer les frais et soutenir les animateurs locaux.', 1),
+  ('vienna-election-volunteers', 'Why Vienna Is Training Election Volunteers Year-Round', 'Local organizers say resilience comes from routine drills, not crisis-only mobilization.', 'Politics', 'AT', array['AT', 'DE'], 'creator_lukas', 'en', 'de', 'Volunteer coordinators in Vienna now run monthly simulation drills for polling-day disruptions. Organizers report faster response times and lower stress under pressure.', 'Freiwilligen-Teams in Wien fuehren inzwischen monatliche Uebungen fuer Stoerfaelle am Wahltag durch. Die Organisatoren melden schnellere Reaktionen und weniger Stress unter Druck.', 2),
+  ('baltic-night-train-journal', 'A Night Train Diary From Riga to Vilnius', 'A cross-border route reveals how language, pricing, and station design shape travel behavior.', 'Lifestyle', 'LV', array['LV', 'LT', 'EE'], 'creator_lea', 'en', 'fr', 'The overnight route from Riga to Vilnius has become a moving forum: students, families, and shift workers all negotiate the same shared corridor.', 'La liaison de nuit entre Riga et Vilnius est devenue un forum mobile: etudiants, familles et travailleurs en horaires decales partagent le meme couloir.', 3),
+  ('porto-urban-startup-loop', 'Why Porto Feels Like a Prototype for Mid-Sized EU Cities', 'Compact commutes and dense creator networks are pulling talent outside larger capitals.', 'Tech', 'PT', array['PT', 'ES'], 'creator_miguel', 'en', 'pt', 'In Porto, founders describe a practical loop: walkable neighborhoods, lower burn rates, and easier access to community mentors.', 'No Porto, fundadores descrevem um ciclo pratico: bairros caminhaveis, menores custos operacionais e acesso mais facil a mentores da comunidade.', 4),
+  ('copenhagen-climate-blocks', 'Copenhagen''s Block-Level Climate Plans Are Going Hyper-Local', 'Residents now vote on neighborhood adaptation priorities before municipal budgeting rounds.', 'Climate', 'DK', array['DK', 'SE'], 'creator_sofia', 'en', 'de', 'Copenhagen tested district-level adaptation ballots where residents ranked drainage, shade, and school-route protection investments.', 'Kopenhagen testete abstimmungen auf bezirksebene, bei denen bewohner investitionen in entwasserung, schatten und sichere schulwege priorisierten.', 5);
 
 do $$
 declare
@@ -573,7 +572,6 @@ begin
       'topic', a.topic,
       'country_code', a.country_code,
       'country_tags', to_jsonb(a.country_tags),
-      'read_time_minutes', a.read_time_minutes,
       'language_top', a.lang_top,
       'language_bottom', a.lang_bottom,
       'body_top', a.body_top,
@@ -830,6 +828,7 @@ begin
     return;
   end if;
 
+  -- Seed with short rolling alignment windows so tap mapping has usable granularity.
   insert into public.article_alignments (
     id, article_id, from_localization_id, to_localization_id,
     alignment_json, algo_version, quality_score
@@ -844,10 +843,7 @@ begin
       'source_lang', a.lang_top,
       'target_lang', a.lang_bottom,
       'offset_encoding', 'utf16_code_units',
-      'units', jsonb_build_array(
-        jsonb_build_object('c', jsonb_build_array(0, 80), 't', jsonb_build_array(0, 80), 'score', 0.9),
-        jsonb_build_object('c', jsonb_build_array(81, 180), 't', jsonb_build_array(81, 180), 'score', 0.86)
-      )
+      'units', window_units.units
     ),
     'seed-v1',
     0.9
@@ -859,7 +855,47 @@ begin
   join public.article_localizations bottom_loc
     on bottom_loc.article_id = m.article_id
    and bottom_loc.lang = a.lang_bottom
-  on conflict (id) do update
+  cross join lateral (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'c', jsonb_build_array(w.c_start, w.c_end),
+          't', jsonb_build_array(w.t_start, w.t_end),
+          'score', 0.86
+        )
+        order by w.c_start
+      ),
+      '[]'::jsonb
+    ) as units
+    from (
+      select
+        c_start,
+        c_end,
+        t_start,
+        greatest(t_start + 1, t_end_raw) as t_end
+      from (
+        select
+          gs as c_start,
+          least(gs + 48, char_length(top_loc.body)) as c_end,
+          floor(
+            (gs::numeric / greatest(char_length(top_loc.body), 1)) *
+            char_length(bottom_loc.body)
+          )::int as t_start,
+          ceil(
+            (least(gs + 48, char_length(top_loc.body))::numeric /
+            greatest(char_length(top_loc.body), 1)) *
+            char_length(bottom_loc.body)
+          )::int as t_end_raw
+        from generate_series(
+          0,
+          greatest(char_length(top_loc.body) - 1, 0),
+          48
+        ) as gs
+      ) raw
+      where c_end > c_start
+    ) w
+  ) as window_units
+  on conflict (from_localization_id, to_localization_id) do update
     set alignment_json = excluded.alignment_json,
         algo_version = excluded.algo_version,
         quality_score = excluded.quality_score;
@@ -1161,6 +1197,32 @@ begin
     on conflict (article_id, vocab_item_id) do update
       set rank = excluded.rank;
   end if;
+end $$;
+
+do $$
+declare
+  m record;
+begin
+  if to_regprocedure('public.rebuild_article_token_graph(uuid,integer,text)') is null then
+    return;
+  end if;
+
+  for m in
+    select article_id
+    from _seed_article_ids
+  loop
+    perform public.rebuild_article_token_graph(
+      m.article_id,
+      3,
+      'seed:rich_seed'
+    );
+    if to_regprocedure('public.rebuild_article_token_alignments(uuid,text)') is not null then
+      perform public.rebuild_article_token_alignments(
+        m.article_id,
+        'seed:token_window_v1'
+      );
+    end if;
+  end loop;
 end $$;
 
 create temporary table if not exists _seed_pairs (
@@ -1821,6 +1883,11 @@ begin
         );
 
       if v_insert_cols is not null and v_update_set is not null then
+        delete from public.streak_events
+        where user_id = s.user_id
+          and activity_date = s.activity_date
+          and activity_type = 'article_read';
+
         execute format(
           'insert into public.streak_events (%1$s) ' ||
           'select %1$s from jsonb_populate_record(null::public.streak_events, $1) ' ||

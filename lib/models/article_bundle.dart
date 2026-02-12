@@ -1,5 +1,6 @@
 import 'article_alignment_pack.dart';
 import 'article_localization.dart';
+import 'article_token_graph.dart';
 import 'vocab_models.dart';
 
 class ArticleBundle {
@@ -13,6 +14,11 @@ class ArticleBundle {
     required this.alignmentToTop,
     required this.alignmentToBottom,
     required this.focusVocab,
+    this.canonicalTokens = const [],
+    this.topTokens = const [],
+    this.bottomTokens = const [],
+    this.tokenAlignmentsToTop = const [],
+    this.tokenAlignmentsToBottom = const [],
   });
 
   final String articleId;
@@ -24,6 +30,11 @@ class ArticleBundle {
   final ArticleAlignmentPack? alignmentToTop;
   final ArticleAlignmentPack? alignmentToBottom;
   final ArticleFocusVocab focusVocab;
+  final List<ArticleLocalizationToken> canonicalTokens;
+  final List<ArticleLocalizationToken> topTokens;
+  final List<ArticleLocalizationToken> bottomTokens;
+  final List<ArticleTokenAlignment> tokenAlignmentsToTop;
+  final List<ArticleTokenAlignment> tokenAlignmentsToBottom;
 
   Map<String, dynamic> toJson() {
     return {
@@ -36,6 +47,15 @@ class ArticleBundle {
       'alignmentToTop': alignmentToTop?.toJson(),
       'alignmentToBottom': alignmentToBottom?.toJson(),
       'focusVocab': focusVocab.toJson(),
+      'canonicalTokens': canonicalTokens.map((item) => item.toJson()).toList(),
+      'topTokens': topTokens.map((item) => item.toJson()).toList(),
+      'bottomTokens': bottomTokens.map((item) => item.toJson()).toList(),
+      'tokenAlignmentsToTop': tokenAlignmentsToTop
+          .map((item) => item.toJson())
+          .toList(),
+      'tokenAlignmentsToBottom': tokenAlignmentsToBottom
+          .map((item) => item.toJson())
+          .toList(),
     };
   }
 
@@ -66,6 +86,40 @@ class ArticleBundle {
       focusVocab: ArticleFocusVocab.fromJson(
         json['focusVocab'] as Map<String, dynamic>,
       ),
+      canonicalTokens: (json['canonicalTokens'] as List<dynamic>? ?? const [])
+          .map(
+            (item) =>
+                ArticleLocalizationToken.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+      topTokens: (json['topTokens'] as List<dynamic>? ?? const [])
+          .map(
+            (item) =>
+                ArticleLocalizationToken.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+      bottomTokens: (json['bottomTokens'] as List<dynamic>? ?? const [])
+          .map(
+            (item) =>
+                ArticleLocalizationToken.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+      tokenAlignmentsToTop:
+          (json['tokenAlignmentsToTop'] as List<dynamic>? ?? const [])
+              .map(
+                (item) => ArticleTokenAlignment.fromJson(
+                  item as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
+      tokenAlignmentsToBottom:
+          (json['tokenAlignmentsToBottom'] as List<dynamic>? ?? const [])
+              .map(
+                (item) => ArticleTokenAlignment.fromJson(
+                  item as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
     );
   }
 }

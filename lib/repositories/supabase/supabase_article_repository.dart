@@ -5,6 +5,7 @@ import '../../models/article_bundle.dart';
 import '../../models/article_detail.dart';
 import '../../models/article_localization.dart';
 import '../../models/article_summary.dart';
+import '../../models/article_token_graph.dart';
 import '../../models/topic_feed.dart';
 import '../../models/vocab_models.dart';
 import '../article_repository.dart';
@@ -225,6 +226,12 @@ class SupabaseArticleRepository implements ArticleRepository {
         )
         .where((item) => item.item.id.isNotEmpty)
         .toList();
+    final tokenPayload = await _loadTokenPayload(
+      articleId: articleId,
+      canonicalLocalization: canonicalLocalization,
+      topLocalization: topLocalization,
+      bottomLocalization: bottomLocalization,
+    );
 
     return ArticleBundle(
       articleId: articleId,
@@ -236,6 +243,11 @@ class SupabaseArticleRepository implements ArticleRepository {
       alignmentToTop: alignmentToTop,
       alignmentToBottom: alignmentToBottom,
       focusVocab: ArticleFocusVocab(articleId: articleId, items: focusItems),
+      canonicalTokens: tokenPayload.canonicalTokens,
+      topTokens: tokenPayload.topTokens,
+      bottomTokens: tokenPayload.bottomTokens,
+      tokenAlignmentsToTop: tokenPayload.tokenAlignmentsToTop,
+      tokenAlignmentsToBottom: tokenPayload.tokenAlignmentsToBottom,
     );
   }
 
@@ -415,10 +427,6 @@ class SupabaseArticleRepository implements ArticleRepository {
       ], fallback: 'Untitled story'),
       topic: topic,
       countryCode: countryCode,
-      readTimeMinutes: SupabaseMappingUtils.intValue(row, const [
-        'read_time_minutes',
-        'read_time',
-      ], fallback: 4),
       publishedAtLabel: SupabaseMappingUtils.upperDateLabel(
         publishedAt,
         fallback: 'RECENT',
@@ -475,8 +483,6 @@ class SupabaseArticleRepository implements ArticleRepository {
       excerpt: SupabaseMappingUtils.stringValue(row, const [
         'excerpt',
       ], fallback: ''),
-      readTime:
-          '${SupabaseMappingUtils.intValue(row, const ['read_time_minutes', 'read_time'], fallback: 4)} min read',
       authorName: SupabaseMappingUtils.stringValue(row, const [
         'author_name',
       ], fallback: profileName.isEmpty ? 'nEUws Creator' : profileName),
@@ -575,13 +581,218 @@ class SupabaseArticleRepository implements ArticleRepository {
     );
   }
 
+  Future<_BundleTokenPayload> _loadTokenPayload({
+    required String articleId,
+    required ArticleLocalization canonicalLocalization,
+    required ArticleLocalization topLocalization,
+    required ArticleLocalization bottomLocalization,
+  }) async {
+    final localizationIds = <String>{
+      canonicalLocalization.id,
+      topLocalization.id,
+      bottomLocalization.id,
+    }.where((id) => id.isNotEmpty).toList();
+    if (localizationIds.isEmpty) {
+      return const _BundleTokenPayload();
+    }
+
+    final tokensByLocalizationId = <String, List<ArticleLocalizationToken>>{};
+    try {
+      final tokenRows = await _client
+          .from('article_localization_tokens')
+          .select('''
+            id,
+            article_id,
+            localization_id,
+            token_index,
+            start_utf16,
+            end_utf16,
+            surface,
+            normalized_surface,
+            links:article_token_vocab_links!left(
+              vocab_item_id,
+              candidate_rank,
+              is_primary,
+              match_type,
+              confidence,
+              link_source
+            )
+          ''')
+          .eq('article_id', articleId)
+          .inFilter('localization_id', localizationIds)
+          .order('token_index', ascending: true);
+
+      for (final dynamic row in tokenRows) {
+        final token = _mapLocalizationTokenRow(row as Map<String, dynamic>);
+        tokensByLocalizationId
+            .putIfAbsent(
+              token.localizationId,
+              () => <ArticleLocalizationToken>[],
+            )
+            .add(token);
+      }
+    } on PostgrestException {
+      return const _BundleTokenPayload();
+    }
+
+    for (final list in tokensByLocalizationId.values) {
+      list.sort((a, b) => a.tokenIndex.compareTo(b.tokenIndex));
+    }
+
+    final targetLocalizationIds = <String>{
+      if (topLocalization.id != canonicalLocalization.id) topLocalization.id,
+      if (bottomLocalization.id != canonicalLocalization.id)
+        bottomLocalization.id,
+    }.where((id) => id.isNotEmpty).toList();
+    final tokenAlignments = <ArticleTokenAlignment>[];
+    if (targetLocalizationIds.isNotEmpty) {
+      try {
+        final alignmentRows = await _client
+            .from('article_token_alignments')
+            .select('''
+              canonical_token_id,
+              target_localization_id,
+              target_token_id,
+              score,
+              algo_version
+            ''')
+            .eq('article_id', articleId)
+            .inFilter('target_localization_id', targetLocalizationIds);
+        tokenAlignments.addAll(
+          alignmentRows.map<ArticleTokenAlignment>(
+            (dynamic row) => _mapTokenAlignmentRow(row as Map<String, dynamic>),
+          ),
+        );
+      } on PostgrestException {
+        // Optional token alignment table should not block article reading.
+      }
+    }
+
+    final canonicalTokens =
+        tokensByLocalizationId[canonicalLocalization.id] ?? const [];
+    final topTokens = topLocalization.id == canonicalLocalization.id
+        ? canonicalTokens
+        : (tokensByLocalizationId[topLocalization.id] ?? const []);
+    final bottomTokens = bottomLocalization.id == canonicalLocalization.id
+        ? canonicalTokens
+        : (tokensByLocalizationId[bottomLocalization.id] ?? const []);
+    final tokenAlignmentsToTop = topLocalization.id == canonicalLocalization.id
+        ? const <ArticleTokenAlignment>[]
+        : tokenAlignments
+              .where((item) => item.targetLocalizationId == topLocalization.id)
+              .toList();
+    final tokenAlignmentsToBottom =
+        bottomLocalization.id == canonicalLocalization.id
+        ? const <ArticleTokenAlignment>[]
+        : tokenAlignments
+              .where(
+                (item) => item.targetLocalizationId == bottomLocalization.id,
+              )
+              .toList();
+
+    return _BundleTokenPayload(
+      canonicalTokens: canonicalTokens,
+      topTokens: topTokens,
+      bottomTokens: bottomTokens,
+      tokenAlignmentsToTop: tokenAlignmentsToTop,
+      tokenAlignmentsToBottom: tokenAlignmentsToBottom,
+    );
+  }
+
+  ArticleLocalizationToken _mapLocalizationTokenRow(Map<String, dynamic> row) {
+    final primaryLink = _pickPrimaryTokenLink(row['links']);
+    return ArticleLocalizationToken(
+      id: SupabaseMappingUtils.stringValue(row, const ['id'], fallback: ''),
+      articleId: SupabaseMappingUtils.stringValue(row, const [
+        'article_id',
+      ], fallback: ''),
+      localizationId: SupabaseMappingUtils.stringValue(row, const [
+        'localization_id',
+      ], fallback: ''),
+      tokenIndex: SupabaseMappingUtils.intValue(row, const [
+        'token_index',
+      ], fallback: 0),
+      startUtf16: SupabaseMappingUtils.intValue(row, const [
+        'start_utf16',
+      ], fallback: 0),
+      endUtf16: SupabaseMappingUtils.intValue(row, const [
+        'end_utf16',
+      ], fallback: 0),
+      surface: SupabaseMappingUtils.stringValue(row, const [
+        'surface',
+      ], fallback: ''),
+      normalizedSurface: SupabaseMappingUtils.stringValue(row, const [
+        'normalized_surface',
+      ], fallback: ''),
+      primaryVocabItemId: SupabaseMappingUtils.stringValue(primaryLink, const [
+        'vocab_item_id',
+      ], fallback: ''),
+      primaryCandidateRank: primaryLink.containsKey('candidate_rank')
+          ? SupabaseMappingUtils.intValue(primaryLink, const [
+              'candidate_rank',
+            ], fallback: 1)
+          : null,
+      primaryMatchType: SupabaseMappingUtils.stringValue(primaryLink, const [
+        'match_type',
+      ], fallback: ''),
+      primaryConfidence: (primaryLink['confidence'] as num?)?.toDouble(),
+      primaryLinkSource: SupabaseMappingUtils.stringValue(primaryLink, const [
+        'link_source',
+      ], fallback: ''),
+    );
+  }
+
+  ArticleTokenAlignment _mapTokenAlignmentRow(Map<String, dynamic> row) {
+    return ArticleTokenAlignment(
+      canonicalTokenId: SupabaseMappingUtils.stringValue(row, const [
+        'canonical_token_id',
+      ], fallback: ''),
+      targetLocalizationId: SupabaseMappingUtils.stringValue(row, const [
+        'target_localization_id',
+      ], fallback: ''),
+      targetTokenId: SupabaseMappingUtils.stringValue(row, const [
+        'target_token_id',
+      ], fallback: ''),
+      score: (row['score'] as num?)?.toDouble(),
+      algoVersion: SupabaseMappingUtils.stringValue(row, const [
+        'algo_version',
+      ], fallback: ''),
+    );
+  }
+
+  Map<String, dynamic> _pickPrimaryTokenLink(dynamic rawLinks) {
+    if (rawLinks is! List) {
+      return const <String, dynamic>{};
+    }
+
+    Map<String, dynamic>? fallback;
+    for (final dynamic raw in rawLinks) {
+      if (raw is! Map<String, dynamic>) {
+        continue;
+      }
+      final rank = SupabaseMappingUtils.intValue(raw, const ['candidate_rank']);
+      if (fallback == null ||
+          rank <
+              SupabaseMappingUtils.intValue(fallback, const [
+                'candidate_rank',
+              ], fallback: 1 << 30)) {
+        fallback = raw;
+      }
+      if (SupabaseMappingUtils.boolValue(raw, const ['is_primary'])) {
+        return raw;
+      }
+    }
+    return fallback ?? const <String, dynamic>{};
+  }
+
   ArticleLocalization _pickLocalization(
     List<ArticleLocalization> localizations, {
     required String lang,
     required ArticleLocalization fallback,
   }) {
+    final langCandidates = _languageCandidates(lang);
     return localizations.firstWhere(
-      (item) => item.lang == lang,
+      (item) => _matchesLanguage(item.lang, langCandidates),
       orElse: () => fallback,
     );
   }
@@ -648,10 +859,13 @@ class SupabaseArticleRepository implements ArticleRepository {
     if (rawEntries is! List) {
       return null;
     }
+    final uiCandidates = _languageCandidates(uiLang);
     for (final dynamic entryRow in rawEntries) {
       final entryMap = entryRow as Map<String, dynamic>;
-      if (SupabaseMappingUtils.stringValue(entryMap, const ['lang']) ==
-          uiLang) {
+      final entryLang = SupabaseMappingUtils.stringValue(entryMap, const [
+        'lang',
+      ]);
+      if (_matchesLanguage(entryLang, uiCandidates)) {
         return _mapVocabEntry(entryMap);
       }
     }
@@ -668,12 +882,22 @@ class SupabaseArticleRepository implements ArticleRepository {
     if (rawForms is! List) {
       return const [];
     }
+    final langCandidates = langs
+        .expand(_languageCandidates)
+        .map((item) => item.trim().toLowerCase())
+        .toSet();
     final forms = rawForms
         .map(
           (dynamic formRow) => _mapVocabForm(formRow as Map<String, dynamic>),
         )
         .toList();
-    return forms.where((form) => langs.contains(form.lang)).toList();
+    final picked = forms
+        .where((form) => _matchesLanguage(form.lang, langCandidates))
+        .toList();
+    if (picked.isNotEmpty) {
+      return picked;
+    }
+    return forms;
   }
 
   VocabEntry _mapVocabEntry(Map<String, dynamic> row) {
@@ -802,4 +1026,79 @@ class SupabaseArticleRepository implements ArticleRepository {
     }
     return 'bronze';
   }
+
+  bool _matchesLanguage(String value, Set<String> candidates) {
+    if (candidates.isEmpty) {
+      return false;
+    }
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    if (candidates.contains(normalized)) {
+      return true;
+    }
+    final mappedCode = _languageAliasToCode[normalized];
+    if (mappedCode != null && candidates.contains(mappedCode)) {
+      return true;
+    }
+    final mappedAlias = _languageCodeToAlias[normalized];
+    if (mappedAlias != null && candidates.contains(mappedAlias)) {
+      return true;
+    }
+    return false;
+  }
+
+  Set<String> _languageCandidates(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return const <String>{};
+    }
+    final out = <String>{normalized};
+    final mappedCode = _languageAliasToCode[normalized];
+    if (mappedCode != null) {
+      out.add(mappedCode);
+    }
+    final mappedAlias = _languageCodeToAlias[normalized];
+    if (mappedAlias != null) {
+      out.add(mappedAlias);
+    }
+    return out;
+  }
+
+  static const Map<String, String> _languageAliasToCode = {
+    'english': 'en',
+    'french': 'fr',
+    'german': 'de',
+    'swedish': 'sv',
+    'spanish': 'es',
+    'italian': 'it',
+    'portuguese': 'pt',
+  };
+
+  static const Map<String, String> _languageCodeToAlias = {
+    'en': 'english',
+    'fr': 'french',
+    'de': 'german',
+    'sv': 'swedish',
+    'es': 'spanish',
+    'it': 'italian',
+    'pt': 'portuguese',
+  };
+}
+
+class _BundleTokenPayload {
+  const _BundleTokenPayload({
+    this.canonicalTokens = const <ArticleLocalizationToken>[],
+    this.topTokens = const <ArticleLocalizationToken>[],
+    this.bottomTokens = const <ArticleLocalizationToken>[],
+    this.tokenAlignmentsToTop = const <ArticleTokenAlignment>[],
+    this.tokenAlignmentsToBottom = const <ArticleTokenAlignment>[],
+  });
+
+  final List<ArticleLocalizationToken> canonicalTokens;
+  final List<ArticleLocalizationToken> topTokens;
+  final List<ArticleLocalizationToken> bottomTokens;
+  final List<ArticleTokenAlignment> tokenAlignmentsToTop;
+  final List<ArticleTokenAlignment> tokenAlignmentsToBottom;
 }

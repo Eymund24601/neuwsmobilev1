@@ -35,7 +35,9 @@ class TopicFeedPage extends ConsumerWidget {
               if (index == 0) {
                 return Text(
                   '${feed.displayName} feed',
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(fontSize: 30),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.displayMedium?.copyWith(fontSize: 30),
                 );
               }
               final story = feed.stories[index - 1];
@@ -56,13 +58,23 @@ class TopicFeedPage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(story.topic, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.muted)),
+                      Text(
+                        story.topic,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                      ),
                       const SizedBox(height: 6),
-                      Text(story.title, style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        story.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 8),
                       Text(
-                        '${story.publishedAtLabel} · ${story.readTimeMinutes} min',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.muted),
+                        story.publishedAtLabel,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: palette.muted),
                       ),
                     ],
                   ),

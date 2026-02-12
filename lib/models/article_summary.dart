@@ -5,7 +5,6 @@ class ArticleSummary {
     required this.title,
     required this.topic,
     required this.countryCode,
-    required this.readTimeMinutes,
     required this.publishedAtLabel,
     required this.isPremium,
   });
@@ -15,7 +14,6 @@ class ArticleSummary {
   final String title;
   final String topic;
   final String countryCode;
-  final int readTimeMinutes;
   final String publishedAtLabel;
   final bool isPremium;
 
@@ -26,7 +24,6 @@ class ArticleSummary {
       title: json['title'] as String,
       topic: json['topic'] as String,
       countryCode: json['countryCode'] as String,
-      readTimeMinutes: json['readTimeMinutes'] as int,
       publishedAtLabel: json['publishedAtLabel'] as String,
       isPremium: json['isPremium'] as bool,
     );
@@ -39,7 +36,6 @@ class ArticleSummary {
       'title': title,
       'topic': topic,
       'countryCode': countryCode,
-      'readTimeMinutes': readTimeMinutes,
       'publishedAtLabel': publishedAtLabel,
       'isPremium': isPremium,
     };

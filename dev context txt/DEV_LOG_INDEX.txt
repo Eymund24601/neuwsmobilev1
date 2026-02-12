@@ -2,11 +2,12 @@
 
 Read order for fastest context recovery:
 
-1. `dev context txt/DEV_LOG_2026-02-11.txt` (Quiz Clash random->bot mode + fully playable Puzzles delivery + strict Supabase-only runtime/no mock fallback)
-2. `dev context txt/DEV_LOG_2026-02-10.txt` (hosted seed/profile/realtime + performance preload/cache + auth/ui polish + creator-compat fallback addenda)
-3. `dev context txt/DEV_LOG_2026-02-09.txt` (stabilization + auth/sign-in work)
-4. `dev context txt/DEV_LOG_2026-02-06.txt` (migration hardening + Supabase onboarding)
-5. `dev context txt/DEV_LOG_2026-02-04.txt` (earlier baseline session)
+1. `dev context txt/DEV_LOG_2026-02-12.txt` (polyglot reader correction + strict no-guess mapping, token-graph addenda, AI publish contract clarifications)
+2. `dev context txt/DEV_LOG_2026-02-11.txt` (Quiz Clash random->bot mode + fully playable Puzzles delivery + strict Supabase-only runtime/no mock fallback)
+3. `dev context txt/DEV_LOG_2026-02-10.txt` (hosted seed/profile/realtime + performance preload/cache + auth/ui polish + creator-compat fallback addenda)
+4. `dev context txt/DEV_LOG_2026-02-09.txt` (stabilization + auth/sign-in work)
+5. `dev context txt/DEV_LOG_2026-02-06.txt` (migration hardening + Supabase onboarding)
+6. `dev context txt/DEV_LOG_2026-02-04.txt` (earlier baseline session)
 
 Notes:
 - Prefer newest log first.
